@@ -1,0 +1,1054 @@
+// Fikir Design Admin Dashboard - Prisma Schema
+// MySQL Database with Hierarchical Category System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER MODEL
+// ============================================
+
+enum UserRole {
+  admin
+  manager
+  staff
+  designer
+  sewer
+  store_keeper
+  material_controller
+  sales
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  username    String?  @unique @db.VarChar(80)
+  firstName   String   @map("first_name") @db.VarChar(100)
+  lastName    String   @map("last_name") @db.VarChar(100)
+  email       String?  @unique @db.VarChar(255)
+  password    String   @db.VarChar(255)
+  phone       String?  @db.VarChar(20)
+  avatar      String?  @db.VarChar(500)
+  role        UserRole @default(staff)
+  isActive    Boolean  @default(true) @map("is_active")
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  createdCategories  Category[]  @relation("CategoryCreatedBy")
+  createdProducts    Product[]   @relation("ProductCreatedBy")
+  countedInventories Inventory[] @relation("InventoryLastCountedBy")
+  updatedInventories Inventory[] @relation("InventoryUpdatedBy")
+  workflowEvents     WorkflowStageEvent[] @relation("WorkflowActor")
+  performedVerifications OrderVerification[] @relation("VerificationPerformedBy")
+  qualityChecks      QualityControlRecord[] @relation("QualityCheckedBy")
+  productionMetrics  ProductionOeeSnapshot[] @relation("ProductionMetricRecordedBy")
+  wallet             Wallet?
+  walletTxCreated    WalletTransaction[] @relation("WalletTxCreatedBy")
+  pointLedgerEntries PointLedger[] @relation("PointLedgerUser")
+  pointsAwarded      PointLedger[] @relation("PointLedgerAwardedBy")
+  overtimeLogs       OvertimeLog[] @relation("OvertimeUser")
+  overtimeApproved   OvertimeLog[] @relation("OvertimeApprovedBy")
+  salesReports       SalesActivityReport[] @relation("SalesReportUser")
+  salesReportsReviewed SalesActivityReport[] @relation("SalesReportReviewer")
+  sewingAssignments  OrderAssignment[]     @relation("AssignedSewer")
+  assignedByMe       OrderAssignment[]     @relation("AssignedByManager")
+  stockMovementsCreated StockMovement[]    @relation("StockMovementCreatedBy")
+
+  @@index([username])
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@map("users")
+}
+
+// ============================================
+// CATEGORY HIERARCHY SYSTEM
+// ============================================
+
+enum CategoryType {
+  product_type    // Root: e.g. "Women", "Men"
+  category        // Under product_type: e.g. "Clothing"
+  subcategory     // Under category: e.g. "Traditional cloth"
+}
+
+model Category {
+  id          Int          @id @default(autoincrement())
+  name        String       @db.VarChar(200)
+  slug        String       @unique @db.VarChar(255)
+  description String?      @db.Text
+  categoryType CategoryType @map("category_type") @default(subcategory)
+  
+  // Hierarchy
+  parentId    Int?         @map("parent_id")
+  level       Int          @default(0)
+  sortOrder   Int          @default(0) @map("sort_order")
+  
+  // Display
+  isActive    Boolean      @default(true) @map("is_active")
+  imageUrl    String?      @map("image_url") @db.VarChar(500)
+  icon        String?      @db.VarChar(50)
+  
+  // Metadata
+  metadata    Json?        @db.Json
+  
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  createdBy   Int?         @map("created_by")
+  
+  // Relations
+  parent      Category?    @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[]   @relation("CategoryHierarchy")
+  createdByUser User?      @relation("CategoryCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  products    Product[]
+  
+  @@index([parentId])
+  @@index([slug])
+  @@index([level])
+  @@index([isActive])
+  @@map("categories")
+}
+
+// ============================================
+// PRODUCT TYPE & ATTRIBUTES
+// ============================================
+
+model ProductType {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique @db.VarChar(100)
+  displayName String       @map("display_name") @db.VarChar(200)
+  description String?      @db.Text
+  icon        String?      @db.VarChar(50)
+  
+  // Configuration
+  hasVariants Boolean      @default(false) @map("has_variants")
+  hasSize     Boolean      @default(false) @map("has_size")
+  hasColor    Boolean      @default(false) @map("has_color")
+  
+  // Size Options (JSON array of available sizes)
+  sizeOptions Json?       @map("size_options") @db.Json
+  
+  // Color Options (JSON array of available colors)
+  colorOptions Json?      @map("color_options") @db.Json
+  
+  // Measurement Requirements
+  requiresMeasurements Boolean @default(false) @map("requires_measurements")
+  measurementFields Json?  @map("measurement_fields") @db.Json
+  
+  isActive    Boolean      @default(true) @map("is_active")
+  sortOrder   Int          @default(0) @map("sort_order")
+  
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  
+  products    Product[]
+  
+  @@index([isActive])
+  @@map("product_types")
+}
+
+// ============================================
+// PRODUCTS
+// ============================================
+
+model Product {
+  id                Int                @id @default(autoincrement())
+  
+  // Basic Information
+  name              String             @db.VarChar(200)
+  slug              String             @unique @db.VarChar(255)
+  descriptionShort  String?            @map("description_short") @db.VarChar(500)
+  descriptionDetailed String?         @map("description_detailed") @db.Text
+  specifications    String?            @db.Text
+
+  // Bilingual catalog (Amharic)
+  nameAm                      String?  @map("name_am") @db.VarChar(200)
+  descriptionShortAm        String?  @map("description_short_am") @db.VarChar(500)
+  descriptionDetailedAm     String?  @map("description_detailed_am") @db.Text
+
+  // Default fees per unit / quote (ETB)
+  defaultShippingFee        Decimal    @default(0) @map("default_shipping_fee") @db.Decimal(10, 2)
+  defaultServiceFee         Decimal    @default(0) @map("default_service_fee") @db.Decimal(10, 2)
+
+  // Garment & custom design
+  fabricComposition         String?    @map("fabric_composition") @db.VarChar(400)
+  fabricCompositionAm       String?    @map("fabric_composition_am") @db.VarChar(400)
+  careInstructions          String?    @map("care_instructions") @db.Text
+  careInstructionsAm        String?    @map("care_instructions_am") @db.Text
+  designNotes               String?    @map("design_notes") @db.Text
+  designNotesAm             String?    @map("design_notes_am") @db.Text
+  measurementGuideSummary   String?    @map("measurement_guide_summary") @db.VarChar(500)
+  measurementGuideSummaryAm String?    @map("measurement_guide_summary_am") @db.VarChar(500)
+
+  // P&L planning (estimated ETB, internal)
+  estimatedLaborCost        Decimal?   @map("estimated_labor_cost") @db.Decimal(10, 2)
+  estimatedMaterialCost     Decimal?   @map("estimated_material_cost") @db.Decimal(10, 2)
+  
+  // Product Type & Category
+  productTypeId     Int?               @map("product_type_id")
+  categoryId        Int?               @map("category_id")
+  
+  // SKU & Identification
+  sku               String             @unique @db.VarChar(100)
+  barcode           String?            @db.VarChar(100)
+  
+  // Pricing
+  basePrice         Decimal            @map("base_price") @db.Decimal(10, 2)
+  compareAtPrice    Decimal?           @map("compare_at_price") @db.Decimal(10, 2)
+  costPrice         Decimal?           @map("cost_price") @db.Decimal(10, 2)
+  
+  // Tax
+  taxClass          String?            @map("tax_class") @db.VarChar(50)
+  
+  // Status
+  status            ProductStatus      @default(draft)
+  isFeatured        Boolean            @default(false) @map("is_featured")
+  isDigital         Boolean            @default(false) @map("is_digital")
+  
+  // Shipping
+  requiresShipping  Boolean            @default(true) @map("requires_shipping")
+  weight            Decimal?           @db.Decimal(8, 2)
+  weightUnit        String?            @map("weight_unit") @db.VarChar(20)
+  
+  // Dimensions
+  length            Decimal?           @db.Decimal(8, 2)
+  width             Decimal?           @db.Decimal(8, 2)
+  height            Decimal?           @db.Decimal(8, 2)
+  dimensionUnit     String?            @map("dimension_unit") @db.VarChar(20)
+  
+  // SEO
+  metaTitle         String?            @map("meta_title") @db.VarChar(255)
+  metaDescription   String?            @map("meta_description") @db.Text
+  metaKeywords      String?            @map("meta_keywords") @db.Text
+  
+  // Timestamps
+  publishedAt       DateTime?          @map("published_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  createdBy         Int?               @map("created_by")
+  
+  // Relations
+  productType       ProductType?       @relation(fields: [productTypeId], references: [id])
+  category          Category?          @relation(fields: [categoryId], references: [id])
+  createdByUser     User?              @relation("ProductCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  images            ProductImage[]
+  variants          ProductVariant[]
+  variantCombinations ProductVariantCombination[]
+  attributes         ProductAttribute[]
+  inventory          Inventory[]
+  orderItems         OrderItem[]
+  
+  @@index([sku])
+  @@index([slug])
+  @@index([categoryId])
+  @@index([productTypeId])
+  @@index([status])
+  @@index([basePrice])
+  @@index([createdAt])
+  @@map("products")
+}
+
+// ============================================
+// PRODUCT IMAGES
+// ============================================
+
+model ProductImage {
+  id            Int      @id @default(autoincrement())
+  productId     Int      @map("product_id")
+  url           String   @db.VarChar(500)
+  alt           String?  @db.VarChar(255)
+  isPrimary     Boolean  @default(false) @map("is_primary")
+  sortOrder     Int      @default(0) @map("sort_order")
+  
+  // Metadata
+  width         Int?     @map("metadata_width")
+  height        Int?     @map("metadata_height")
+  fileSize      Int?     @map("file_size")
+  
+  createdAt     DateTime @default(now()) @map("created_at")
+  
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  @@index([productId])
+  @@index([isPrimary])
+  @@map("product_images")
+}
+
+// ============================================
+// PRODUCT VARIANTS (Size, Color, etc.)
+// ============================================
+
+model ProductVariant {
+  id           Int          @id @default(autoincrement())
+  productId    Int          @map("product_id")
+  name         String       @db.VarChar(100)
+  variantType  VariantType  @default(dropdown) @map("variant_type")
+  options      Json         @db.Json // e.g., ["S", "M", "L", "XL"] or ["Red", "Blue", "Green"]
+  
+  createdAt    DateTime     @default(now()) @map("created_at")
+  
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  @@index([productId])
+  @@map("product_variants")
+}
+
+// ============================================
+// PRODUCT VARIANT COMBINATIONS (SKUs)
+// ============================================
+
+model ProductVariantCombination {
+  id            Int      @id @default(autoincrement())
+  productId     Int      @map("product_id")
+  variantSku    String   @map("variant_sku") @db.VarChar(100)
+  price         Decimal  @db.Decimal(10, 2)
+  stockQuantity Int      @default(0) @map("stock_quantity")
+  image         String?  @db.VarChar(500)
+  attributes    Json?    @db.Json // e.g., {"size": "M", "color": "Red"}
+  isActive      Boolean  @default(true) @map("is_active")
+  
+  createdAt     DateTime @default(now()) @map("created_at")
+  
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  @@index([productId])
+  @@index([variantSku])
+  @@map("product_variant_combinations")
+}
+
+// ============================================
+// PRODUCT ATTRIBUTES
+// ============================================
+
+model ProductAttribute {
+  id            Int           @id @default(autoincrement())
+  productId     Int           @map("product_id")
+  name          String        @db.VarChar(100)
+  value         String        @db.Text
+  attributeType AttributeType @default(text) @map("attribute_type")
+  isFilterable  Boolean       @default(false) @map("is_filterable")
+  isSearchable  Boolean       @default(false) @map("is_searchable")
+  
+  createdAt     DateTime      @default(now()) @map("created_at")
+  
+  product       Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  @@index([productId])
+  @@map("product_attributes")
+}
+
+// ============================================
+// INVENTORY
+// ============================================
+
+model Inventory {
+  id               Int      @id @default(autoincrement())
+  productId        Int      @map("product_id")
+  quantity         Int      @default(0)
+  lowStockThreshold Int     @default(10) @map("low_stock_threshold")
+  
+  lastCountedAt    DateTime? @map("last_counted_at")
+  lastCountedBy    Int?     @map("last_counted_by")
+  
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  updatedBy        Int?     @map("updated_by")
+  
+  product          Product  @relation(fields: [productId], references: [id])
+  lastCountedByUser User?   @relation("InventoryLastCountedBy", fields: [lastCountedBy], references: [id], onDelete: SetNull)
+  updatedByUser     User?   @relation("InventoryUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
+  supplyChainEvents SupplyChainTelemetry[]
+  
+  @@index([productId])
+  @@index([quantity])
+  @@index([lowStockThreshold])
+  @@map("inventory")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum ProductStatus {
+  draft
+  active
+  archived
+  out_of_stock
+}
+
+enum VariantType {
+  dropdown
+  radio
+  color
+  image
+}
+
+enum AttributeType {
+  text
+  number
+  boolean
+  date
+  select
+}
+
+// ============================================
+// ORDERS
+// ============================================
+
+enum OrderStatus {
+  pending
+  assigned
+  design_in_progress
+  design_completed
+  sewing_in_progress
+  sewing_completed
+  quality_check
+  quality_passed
+  ready_for_delivery
+  delivery_in_progress
+  delivered
+  cancelled
+  on_hold
+}
+
+model Customer {
+  id            Int      @id @default(autoincrement())
+  firstName     String   @map("first_name") @db.VarChar(100)
+  lastName      String   @map("last_name") @db.VarChar(100)
+  email         String?  @unique @db.VarChar(255)
+  phone         String?  @db.VarChar(20)
+  dateOfBirth   DateTime? @map("date_of_birth") @db.Date
+  gender        String?  @db.VarChar(20)
+  avatar        String?  @db.VarChar(500)
+
+  // Location
+  address       String?  @db.VarChar(500)
+  houseNumber   String?  @map("house_number") @db.VarChar(50)
+  city          String?  @db.VarChar(100)
+
+  // Multi-position photos (JSON array of URLs: front, back, side, detail)
+  photos        Json?    @db.Json
+
+  // Body measurements (JSON — habesha/chiffon design fields)
+  bodyMeasurements Json? @map("body_measurements") @db.Json
+
+  status        String   @default("active") @db.VarChar(50)
+  totalOrders   Int      @default(0) @map("total_orders")
+  totalSpent    Decimal  @default(0) @map("total_spent") @db.Decimal(15, 2)
+  avgOrderValue Decimal? @map("avg_order_value") @db.Decimal(10, 2)
+  lastOrderDate DateTime? @map("last_order_date") @db.Date
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  orders        Order[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+  @@index([totalOrders])
+  @@map("customers")
+}
+
+model Order {
+  id                    Int          @id @default(autoincrement())
+  orderNumber           String       @unique @map("order_number") @db.VarChar(50)
+  referenceNumber       String?      @map("reference_number") @db.VarChar(50)
+  customerId            Int          @map("customer_id")
+  status                OrderStatus  @default(pending)
+  subtotal              Decimal      @db.Decimal(10, 2)
+  tax                   Decimal      @default(0) @db.Decimal(10, 2)
+  shipping              Decimal      @default(0) @db.Decimal(10, 2)
+  discount              Decimal      @default(0) @db.Decimal(10, 2)
+  total                 Decimal      @db.Decimal(10, 2)
+  currency              String       @default("ETB") @db.VarChar(3)
+  isHighPriority        Boolean      @default(false) @map("is_high_priority")
+  currentStage          WorkflowStage @default(crm_data) @map("current_stage")
+  notes                 String?      @db.Text
+  internalNotes         String?      @map("internal_notes") @db.Text
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+
+  customer              Customer     @relation(fields: [customerId], references: [id])
+  items                 OrderItem[]
+  workflowEvents        WorkflowStageEvent[]
+  verifications         OrderVerification[]
+  qualityControlRecords QualityControlRecord[]
+  productionOeeSnapshots ProductionOeeSnapshot[]
+  integrationEvents     IntegrationEvent[]
+  supplyChainEvents     SupplyChainTelemetry[]
+  assignment            OrderAssignment?
+  fabricCuts            FabricCut[]
+
+  @@index([orderNumber])
+  @@index([customerId])
+  @@index([status])
+  @@index([isHighPriority])
+  @@index([currentStage])
+  @@index([createdAt])
+  @@index([total])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          Int      @id @default(autoincrement())
+  orderId     Int      @map("order_id")
+  productId   Int      @map("product_id")
+  name        String   @db.VarChar(200)
+  sku         String?  @db.VarChar(100)
+  quantity    Int
+  price       Decimal  @db.Decimal(10, 2)
+  discount    Decimal  @default(0) @db.Decimal(10, 2)
+  tax         Decimal  @default(0) @db.Decimal(10, 2)
+  total       Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+// ============================================
+// ENTERPRISE DESIGN-TO-DELIVERY WORKFLOW
+// ============================================
+
+enum WorkflowStage {
+  crm_data
+  sales_staff
+  designer
+  sewer_production_team
+  store_manager
+  production
+  quality_control
+  delivery_team
+}
+
+enum VerificationType {
+  multi_factor
+  up_regulatory
+  otp_traceability
+}
+
+enum VerificationMethod {
+  otp
+  keyless
+  up_verification
+}
+
+enum VerificationStatus {
+  pending
+  approved
+  rejected
+}
+
+enum IntegrationType {
+  digital_asset_management
+  supply_chain_iot
+  order_flow
+  quality_control
+  production_oee
+}
+
+model WorkflowStageEvent {
+  id             Int           @id @default(autoincrement())
+  orderId        Int           @map("order_id")
+  fromStage      WorkflowStage? @map("from_stage")
+  toStage        WorkflowStage @map("to_stage")
+  actorUserId    Int?          @map("actor_user_id")
+  actorRole      UserRole?     @map("actor_role")
+  comment        String?       @db.Text
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actor          User?         @relation("WorkflowActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([toStage])
+  @@index([actorUserId])
+  @@index([createdAt])
+  @@map("workflow_stage_events")
+}
+
+model OrderVerification {
+  id                 Int                @id @default(autoincrement())
+  orderId            Int                @map("order_id")
+  type               VerificationType
+  method             VerificationMethod
+  status             VerificationStatus @default(pending)
+  fromStage          WorkflowStage?     @map("from_stage")
+  toStage            WorkflowStage?     @map("to_stage")
+  verificationCode   String?            @map("verification_code") @db.VarChar(120)
+  referenceNumber    String?            @map("reference_number") @db.VarChar(120)
+  notes              String?            @db.Text
+  verifiedByUserId   Int?               @map("verified_by_user_id")
+  verifiedAt         DateTime?          @map("verified_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+
+  order              Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  verifiedBy         User?              @relation("VerificationPerformedBy", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([status])
+  @@index([type])
+  @@index([verifiedByUserId])
+  @@map("order_verifications")
+}
+
+model QualityControlRecord {
+  id               Int       @id @default(autoincrement())
+  orderId          Int       @map("order_id")
+  checkedByUserId  Int?      @map("checked_by_user_id")
+  defectRate       Decimal   @default(0.2) @map("defect_rate") @db.Decimal(5, 2)
+  passCount        Int       @default(0) @map("pass_count")
+  failCount        Int       @default(0) @map("fail_count")
+  isApproved       Boolean   @default(false) @map("is_approved")
+  notes            String?   @db.Text
+  checkedAt        DateTime  @default(now()) @map("checked_at")
+
+  order            Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  checkedBy        User?     @relation("QualityCheckedBy", fields: [checkedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([isApproved])
+  @@index([checkedByUserId])
+  @@map("quality_control_records")
+}
+
+model ProductionOeeSnapshot {
+  id               Int       @id @default(autoincrement())
+  orderId          Int?      @map("order_id")
+  recordedByUserId Int?      @map("recorded_by_user_id")
+  availability     Decimal   @db.Decimal(5, 2)
+  performance      Decimal   @db.Decimal(5, 2)
+  quality          Decimal   @db.Decimal(5, 2)
+  oeeScore         Decimal   @map("oee_score") @db.Decimal(5, 2)
+  recordedAt       DateTime  @default(now()) @map("recorded_at")
+
+  order            Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  recordedBy       User?     @relation("ProductionMetricRecordedBy", fields: [recordedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([recordedByUserId])
+  @@index([recordedAt])
+  @@map("production_oee_snapshots")
+}
+
+model SupplyChainTelemetry {
+  id               Int       @id @default(autoincrement())
+  orderId          Int?      @map("order_id")
+  inventoryId      Int?      @map("inventory_id")
+  sourceDevice     String?   @map("source_device") @db.VarChar(120)
+  eventType        String    @map("event_type") @db.VarChar(120)
+  payload          Json?     @db.Json
+  recordedAt       DateTime  @default(now()) @map("recorded_at")
+
+  order            Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  inventory        Inventory? @relation(fields: [inventoryId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([inventoryId])
+  @@index([recordedAt])
+  @@map("supply_chain_telemetry")
+}
+
+model IntegrationEvent {
+  id               Int             @id @default(autoincrement())
+  orderId          Int?            @map("order_id")
+  integrationType  IntegrationType @map("integration_type")
+  stage            WorkflowStage?  @map("stage")
+  sourceSystem     String          @map("source_system") @db.VarChar(120)
+  eventName        String          @map("event_name") @db.VarChar(150)
+  eventData        Json?           @map("event_data") @db.Json
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  order            Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([integrationType])
+  @@index([stage])
+  @@index([createdAt])
+  @@map("integration_events")
+}
+
+// ============================================
+// WALLET SYSTEM
+// ============================================
+
+enum WalletTransactionType {
+  credit          // money added (salary, bonus, overtime)
+  debit           // money deducted
+  adjustment      // manual correction
+}
+
+enum WalletTransactionReason {
+  salary
+  overtime_bonus
+  performance_bonus
+  deduction
+  manual_adjustment
+}
+
+model Wallet {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @unique @map("user_id")
+  balance     Decimal   @default(0) @db.Decimal(15, 2)
+  totalEarned Decimal   @default(0) @map("total_earned") @db.Decimal(15, 2)
+  totalPaid   Decimal   @default(0) @map("total_paid") @db.Decimal(15, 2)
+  currency    String    @default("ETB") @db.VarChar(3)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+
+  @@index([userId])
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id           Int                      @id @default(autoincrement())
+  walletId     Int                      @map("wallet_id")
+  type         WalletTransactionType
+  reason       WalletTransactionReason
+  amount       Decimal                  @db.Decimal(15, 2)
+  balanceAfter Decimal                  @map("balance_after") @db.Decimal(15, 2)
+  note         String?                  @db.Text
+  referenceId  Int?                     @map("reference_id")
+  createdById  Int?                     @map("created_by_id")
+  createdAt    DateTime                 @default(now()) @map("created_at")
+
+  wallet       Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  createdBy    User?    @relation("WalletTxCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([walletId])
+  @@index([type])
+  @@index([reason])
+  @@index([createdAt])
+  @@map("wallet_transactions")
+}
+
+// ============================================
+// POINT / REWARD SYSTEM
+// ============================================
+
+enum PointLedgerType {
+  earn
+  redeem
+  expire
+  adjustment
+}
+
+enum PointEarnReason {
+  order_completed
+  overtime_worked
+  quality_bonus
+  sales_target_hit
+  social_post_evidence
+  manual_award
+}
+
+model PointLedger {
+  id          Int             @id @default(autoincrement())
+  userId      Int             @map("user_id")
+  type        PointLedgerType
+  reason      PointEarnReason?
+  points      Int
+  balanceAfter Int            @map("balance_after")
+  note        String?         @db.Text
+  referenceId Int?            @map("reference_id")
+  awardedById Int?            @map("awarded_by_id")
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  user        User   @relation("PointLedgerUser", fields: [userId], references: [id], onDelete: Cascade)
+  awardedBy   User?  @relation("PointLedgerAwardedBy", fields: [awardedById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("point_ledger")
+}
+
+// ============================================
+// OVERTIME LOG
+// ============================================
+
+enum OvertimeStatus {
+  pending
+  approved
+  rejected
+  paid
+}
+
+model OvertimeLog {
+  id            Int            @id @default(autoincrement())
+  userId        Int            @map("user_id")
+  date          DateTime       @db.Date
+  hoursWorked   Decimal        @map("hours_worked") @db.Decimal(5, 2)
+  regularHours  Decimal        @default(8) @map("regular_hours") @db.Decimal(5, 2)
+  overtimeHours Decimal        @map("overtime_hours") @db.Decimal(5, 2)
+  hourlyRate    Decimal        @map("hourly_rate") @db.Decimal(10, 2)
+  overtimePay   Decimal        @map("overtime_pay") @db.Decimal(10, 2)
+  status        OvertimeStatus @default(pending)
+  approvedById  Int?           @map("approved_by_id")
+  approvedAt    DateTime?      @map("approved_at")
+  note          String?        @db.Text
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  user          User   @relation("OvertimeUser", fields: [userId], references: [id], onDelete: Cascade)
+  approvedBy    User?  @relation("OvertimeApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([date])
+  @@index([status])
+  @@map("overtime_logs")
+}
+
+// ============================================
+// SALES ACTIVITY REPORT (with evidence)
+// ============================================
+
+enum SalesActivityType {
+  tiktok_post
+  instagram_post
+  facebook_post
+  customer_visit
+  phone_call
+  whatsapp_message
+  other
+}
+
+enum SalesReportStatus {
+  submitted
+  reviewed
+  approved
+  rejected
+}
+
+model SalesActivityReport {
+  id           Int                @id @default(autoincrement())
+  userId       Int                @map("user_id")
+  reportDate   DateTime           @map("report_date") @db.Date
+  activityType SalesActivityType  @map("activity_type")
+  title        String             @db.VarChar(255)
+  description  String?            @db.Text
+  evidenceUrl  String?            @map("evidence_url") @db.VarChar(1000)
+  platform     String?            @db.VarChar(100)
+  reach        Int?
+  leads        Int?               @default(0)
+  conversions  Int?               @default(0)
+  status       SalesReportStatus  @default(submitted)
+  reviewedById Int?               @map("reviewed_by_id")
+  reviewedAt   DateTime?          @map("reviewed_at")
+  reviewNote   String?            @map("review_note") @db.Text
+  pointsAwarded Int?              @default(0) @map("points_awarded")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  user         User    @relation("SalesReportUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy   User?   @relation("SalesReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([reportDate])
+  @@index([status])
+  @@index([activityType])
+  @@map("sales_activity_reports")
+}
+
+// ============================================
+// ORDER ASSIGNMENT (Sales → Manager → Sewer)
+// ============================================
+
+enum AssignmentMethod {
+  manual
+  automatic
+}
+
+enum AssignmentStatus {
+  pending      // waiting for sewer response
+  accepted     // sewer accepted
+  rejected     // sewer rejected (re-assign)
+  in_progress  // sewer started
+  completed    // sewer finished
+}
+
+model OrderAssignment {
+  id              Int              @id @default(autoincrement())
+  orderId         Int              @unique @map("order_id")
+  sewerId         Int              @map("sewer_id")
+  assignedById    Int?             @map("assigned_by_id")
+  method          AssignmentMethod @default(manual)
+  status          AssignmentStatus @default(pending)
+
+  // Sewer response
+  responseAt      DateTime?        @map("response_at")
+  rejectReason    String?          @map("reject_reason") @db.Text
+
+  // Measurements provided for this order (merged from customer + sewer input)
+  // JSON shape: { waist, chest, hips, height, shoulderWidth, sleeveLength,
+  //               neckCircumference, backLength, frontLength, hipLength,
+  //               clothType: "habesha"|"chiffon"|"other",
+  //               notes, predictedSizes }
+  measurements    Json?            @db.Json
+
+  // Fabric requirement (meters) computed by the system
+  fabricMetersRequired Decimal?   @map("fabric_meters_required") @db.Decimal(8, 2)
+
+  // Sewing notes / progress update
+  sewerNotes      String?          @map("sewer_notes") @db.Text
+  startedAt       DateTime?        @map("started_at")
+  completedAt     DateTime?        @map("completed_at")
+  estimatedDoneAt DateTime?        @map("estimated_done_at")
+
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  order           Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sewer           User             @relation("AssignedSewer", fields: [sewerId], references: [id])
+  assignedBy      User?            @relation("AssignedByManager", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([sewerId])
+  @@index([status])
+  @@index([method])
+  @@map("order_assignments")
+}
+
+// ============================================
+// RAW MATERIAL (Cloth Stock)
+// ============================================
+
+enum ClothType {
+  habesha_cotton
+  chiffon
+  silk
+  satin
+  linen
+  polyester
+  velvet
+  organza
+  other
+}
+
+model RawMaterial {
+  id              Int        @id @default(autoincrement())
+  name            String     @db.VarChar(200)
+  clothType       ClothType  @map("cloth_type") @default(other)
+  colorOrPattern  String?    @map("color_or_pattern") @db.VarChar(200)
+  supplier        String?    @db.VarChar(200)
+  unitOfMeasure   String     @default("meters") @map("unit_of_measure") @db.VarChar(20)
+
+  // Stock
+  quantityInStock Decimal    @default(0) @map("quantity_in_stock") @db.Decimal(10, 2)
+  lowStockAlert   Decimal    @default(5) @map("low_stock_alert") @db.Decimal(10, 2)
+
+  // Cost
+  costPerMeter    Decimal    @default(0) @map("cost_per_meter") @db.Decimal(10, 2)
+  currency        String     @default("ETB") @db.VarChar(3)
+
+  // Fabric width (cm) — needed for cut calculation
+  widthCm         Decimal?   @map("width_cm") @db.Decimal(6, 2)
+
+  notes           String?    @db.Text
+  isActive        Boolean    @default(true) @map("is_active")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  fabricCuts      FabricCut[]
+  stockMovements  StockMovement[]
+
+  @@index([clothType])
+  @@index([isActive])
+  @@map("raw_materials")
+}
+
+// ============================================
+// FABRIC CUT (per order — meters deducted)
+// ============================================
+
+model FabricCut {
+  id              Int         @id @default(autoincrement())
+  orderId         Int         @map("order_id")
+  rawMaterialId   Int         @map("raw_material_id")
+
+  // Calculated cut requirements
+  // For habesha: typical full dress = 5–7 m; top = 2–3 m; skirt = 3–4 m
+  // Formula stored for transparency
+  clothType       ClothType   @map("cloth_type")
+  garmentType     String      @map("garment_type") @db.VarChar(100)  // "full_dress", "top", "skirt", etc.
+  metersRequired  Decimal     @map("meters_required") @db.Decimal(8, 2)
+  metersActualCut Decimal?    @map("meters_actual_cut") @db.Decimal(8, 2)
+  wastePercent    Decimal     @default(10) @map("waste_percent") @db.Decimal(5, 2)
+
+  // Who cut and when
+  cutById         Int?        @map("cut_by_id")
+  cutAt           DateTime?   @map("cut_at")
+  notes           String?     @db.Text
+
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  order           Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  rawMaterial     RawMaterial @relation(fields: [rawMaterialId], references: [id])
+
+  @@index([orderId])
+  @@index([rawMaterialId])
+  @@map("fabric_cuts")
+}
+
+// ============================================
+// STOCK MOVEMENT (Income / Expense Ledger)
+// ============================================
+
+enum StockMovementType {
+  purchase        // incoming stock (expense: money out, cloth in)
+  fabric_cut      // cloth cut for order (stock deduction)
+  return          // supplier return (credit)
+  adjustment      // manual stock correction
+  waste           // waste/damage write-off
+}
+
+enum StockMovementDirection {
+  in   // stock increases
+  out  // stock decreases
+}
+
+model StockMovement {
+  id              Int                    @id @default(autoincrement())
+  rawMaterialId   Int                    @map("raw_material_id")
+  type            StockMovementType
+  direction       StockMovementDirection
+  quantityChange  Decimal                @map("quantity_change") @db.Decimal(10, 2)
+  quantityBefore  Decimal                @map("quantity_before") @db.Decimal(10, 2)
+  quantityAfter   Decimal                @map("quantity_after") @db.Decimal(10, 2)
+
+  // Financial
+  unitCost        Decimal?               @map("unit_cost") @db.Decimal(10, 2)
+  totalCost       Decimal?               @map("total_cost") @db.Decimal(15, 2)
+  currency        String                 @default("ETB") @db.VarChar(3)
+
+  // Reference
+  referenceOrderId Int?                  @map("reference_order_id")
+  supplier        String?                @db.VarChar(200)
+  invoiceNumber   String?                @map("invoice_number") @db.VarChar(100)
+  note            String?                @db.Text
+
+  createdById     Int?                   @map("created_by_id")
+  createdAt       DateTime               @default(now()) @map("created_at")
+
+  rawMaterial     RawMaterial @relation(fields: [rawMaterialId], references: [id])
+  createdBy       User?       @relation("StockMovementCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([rawMaterialId])
+  @@index([type])
+  @@index([direction])
+  @@index([createdAt])
+  @@map("stock_movements")
+}
