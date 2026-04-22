@@ -4,24 +4,7 @@ import { getCurrentUserFromRequest } from '@/lib/session-user';
 import fs from 'fs';
 import path from 'path';
 
-// Disable body parsing for multipart/form-data
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-// Helper function to run middleware
-function runMiddleware(req: any, res: any, fn: any) {
-  return new Promise((resolve, reject) => {
-    fn(req, res, (result: any) => {
-      if (result instanceof Error) {
-        return reject(result);
-      }
-      return resolve(result);
-    });
-  });
-}
+// Next.js App Router handles FormData natively — no config needed
 
 // POST /api/upload - Upload files
 export async function POST(req: NextRequest) {

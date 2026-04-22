@@ -60,6 +60,9 @@ model User {
   sewingAssignments  OrderAssignment[]     @relation("AssignedSewer")
   assignedByMe       OrderAssignment[]     @relation("AssignedByManager")
   stockMovementsCreated StockMovement[]    @relation("StockMovementCreatedBy")
+  payrollRecords     Payroll[]            @relation("PayrollUser")
+  payrollsProcessed  Payroll[]            @relation("PayrollProcessedBy")
+  financeCreated     FinanceTransaction[] @relation("FinanceCreatedBy")
 
   @@index([username])
   @@index([email])
@@ -1051,4 +1054,139 @@ model StockMovement {
   @@index([direction])
   @@index([createdAt])
   @@map("stock_movements")
+}
+
+// ============================================
+// PAYROLL SYSTEM
+// ============================================
+
+enum PayrollStatus {
+  draft
+  pending_approval
+  approved
+  paid
+  rejected
+}
+
+enum PayPeriodType {
+  monthly
+  biweekly
+  weekly
+}
+
+model Payroll {
+  id              Int            @id @default(autoincrement())
+  userId          Int            @map("user_id")
+  
+  // Pay period
+  periodType      PayPeriodType  @default(monthly) @map("period_type")
+  periodStart     DateTime       @map("period_start")
+  periodEnd       DateTime       @map("period_end")
+  
+  // Earnings
+  baseSalary      Decimal        @map("base_salary") @db.Decimal(12, 2)
+  overtimePay     Decimal        @default(0) @map("overtime_pay") @db.Decimal(12, 2)
+  bonus           Decimal        @default(0) @db.Decimal(12, 2)
+  commission      Decimal        @default(0) @db.Decimal(12, 2)
+  allowances      Decimal        @default(0) @db.Decimal(12, 2)
+  
+  // Deductions
+  taxDeduction    Decimal        @default(0) @map("tax_deduction") @db.Decimal(12, 2)
+  pensionDeduction Decimal       @default(0) @map("pension_deduction") @db.Decimal(12, 2)
+  otherDeductions Decimal        @default(0) @map("other_deductions") @db.Decimal(12, 2)
+  deductionNotes  String?        @map("deduction_notes") @db.Text
+  
+  // Computed totals
+  grossPay        Decimal        @map("gross_pay") @db.Decimal(12, 2)
+  totalDeductions Decimal        @map("total_deductions") @db.Decimal(12, 2)
+  netPay          Decimal        @map("net_pay") @db.Decimal(12, 2)
+  
+  currency        String         @default("ETB") @db.VarChar(3)
+  status          PayrollStatus  @default(draft)
+  
+  // Metadata
+  processedById   Int?           @map("processed_by_id")
+  processedAt     DateTime?      @map("processed_at")
+  paidAt          DateTime?      @map("paid_at")
+  paymentMethod   String?        @map("payment_method") @db.VarChar(50)
+  paymentRef      String?        @map("payment_ref") @db.VarChar(200)
+  notes           String?        @db.Text
+  
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  
+  user            User           @relation("PayrollUser", fields: [userId], references: [id])
+  processedBy     User?          @relation("PayrollProcessedBy", fields: [processedById], references: [id], onDelete: SetNull)
+  
+  @@index([userId])
+  @@index([status])
+  @@index([periodStart])
+  @@index([periodEnd])
+  @@map("payroll")
+}
+
+// ============================================
+// FINANCE MODULE (Income / Expense Tracker)
+// ============================================
+
+enum FinanceType {
+  income
+  expense
+}
+
+enum FinanceCategory {
+  // Income
+  product_sale
+  service_fee
+  custom_order
+  delivery_fee
+  other_income
+  // Expense
+  salary_payment
+  material_purchase
+  rent
+  utilities
+  equipment
+  transport
+  marketing
+  maintenance
+  tax_payment
+  other_expense
+}
+
+model FinanceTransaction {
+  id              Int              @id @default(autoincrement())
+  type            FinanceType
+  category        FinanceCategory
+  
+  amount          Decimal          @db.Decimal(15, 2)
+  currency        String           @default("ETB") @db.VarChar(3)
+  
+  // Reference
+  title           String           @db.VarChar(300)
+  description     String?          @db.Text
+  referenceId     String?          @map("reference_id") @db.VarChar(100)
+  referenceType   String?          @map("reference_type") @db.VarChar(50)  // "order", "payroll", "stock_purchase", etc.
+  
+  // Payment info
+  paymentMethod   String?          @map("payment_method") @db.VarChar(50)
+  paymentRef      String?          @map("payment_ref") @db.VarChar(200)
+  
+  // Date of transaction (can differ from createdAt)
+  transactionDate DateTime         @map("transaction_date")
+  
+  // Attachments (receipt photo URLs)
+  attachments     Json?            @db.Json
+  
+  createdById     Int?             @map("created_by_id")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  
+  createdBy       User?            @relation("FinanceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  
+  @@index([type])
+  @@index([category])
+  @@index([transactionDate])
+  @@index([createdById])
+  @@map("finance_transactions")
 }

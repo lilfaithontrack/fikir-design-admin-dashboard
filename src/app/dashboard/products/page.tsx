@@ -222,6 +222,7 @@ export default function ProductsPage() {
 
   const [viewOpen, setViewOpen] = useState(false)
   const [viewProduct, setViewProduct] = useState<ProductDetail | null>(null)
+  const [addTab, setAddTab] = useState(0)
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -323,6 +324,7 @@ export default function ProductsPage() {
     setFormDesignNotesAm('')
     setFormMeas('')
     setFormMeasAm('')
+    setAddTab(0)
     setAddOpen(true)
   }
 
@@ -527,261 +529,223 @@ export default function ProductsPage() {
   return (
     <div className="space-y-6">
       <ModalShell open={addOpen} wide title={t('addProduct')} onClose={() => setAddOpen(false)}>
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-gray-700">{t('productName')}</label>
-            <Input value={formName} onChange={(e) => setFormName(e.target.value)} className="mt-1" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">{t('sku')}</label>
-            <Input value={formSku} onChange={(e) => setFormSku(e.target.value)} className="mt-1" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">{t('price')} (ETB)</label>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={formPrice}
-              onChange={(e) => setFormPrice(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          <div className="rounded-md border border-green-100 bg-green-50/50 px-3 py-2 text-xs text-gray-600">
-            Assign a <strong>subcategory</strong> (product type → category → subcategory).
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Product type</label>
-            <select
-              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={formPt}
-              onChange={(e) => setFormPt(e.target.value)}
-            >
-              <option value="">— Select —</option>
-              {productTypeChips.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Category</label>
-            <select
-              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={formMid}
-              onChange={(e) => setFormMid(e.target.value)}
-              disabled={!formPt}
-            >
-              <option value="">— Select —</option>
-              {addMidOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Subcategory</label>
-            <select
-              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={formSub}
-              onChange={(e) => setFormSub(e.target.value)}
-              disabled={!formMid}
-            >
-              <option value="">— Select —</option>
-              {addSubOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">{t('quantity')} (initial)</label>
-            <Input
-              type="number"
-              min="0"
-              value={formQty}
-              onChange={(e) => setFormQty(e.target.value)}
-              className="mt-1"
-            />
-          </div>
+        {(() => {
+          const materialCost = Number(formMaterialEst) || 0
+          const laborCost = Number(formLaborEst) || 0
+          const shippingFee = Number(formShipFee) || 0
+          const serviceFee = Number(formServiceFee) || 0
+          const costPrice = Number(formCostPrice) || 0
+          const totalExpenses = materialCost + laborCost + shippingFee + serviceFee + costPrice
+          const MARGINS = [
+            { label: 'Breakeven', pct: 0 },
+            { label: '20% Margin', pct: 20 },
+            { label: '30% Margin', pct: 30 },
+            { label: '50% Margin', pct: 50 },
+            { label: '100% Margin', pct: 100 },
+          ]
+          const suggestedPrices = MARGINS.map(m => ({
+            ...m,
+            price: totalExpenses > 0 ? totalExpenses * (1 + m.pct / 100) : 0,
+          }))
+          const currentPrice = Number(formPrice) || 0
+          const currentMargin = currentPrice > 0 && totalExpenses > 0
+            ? ((currentPrice - totalExpenses) / currentPrice) * 100
+            : 0
+          const currentProfit = currentPrice - totalExpenses
 
-          <details className="rounded-lg border border-gray-200 bg-gray-50/50 p-3" open>
-            <summary className="cursor-pointer text-sm font-semibold text-gray-800">
-              {t('productBilingualSection')}
-            </summary>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('productNameAm')}</label>
-                <Input value={formNameAm} onChange={(e) => setFormNameAm(e.target.value)} className="mt-1" />
+          const TAB_ITEMS = ['Basic Info', 'Pricing & Costs', 'Descriptions', 'Garment Details']
+
+          return (
+            <div className="space-y-4">
+              {/* Tab Navigation */}
+              <div className="flex gap-1 border-b border-gray-200">
+                {TAB_ITEMS.map((tab, i) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setAddTab(i)}
+                    className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                      addTab === i
+                        ? 'bg-green-600 text-white border-b-2 border-green-600'
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
               </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('descriptionShort')}</label>
-                <Input value={formDescShort} onChange={(e) => setFormDescShort(e.target.value)} className="mt-1" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('descriptionShortAm')}</label>
-                <Input value={formDescShortAm} onChange={(e) => setFormDescShortAm(e.target.value)} className="mt-1" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('descriptionDetailed')}</label>
-                <textarea
-                  value={formDescDetailed}
-                  onChange={(e) => setFormDescDetailed(e.target.value)}
-                  className="mt-1 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('descriptionDetailedAm')}</label>
-                <textarea
-                  value={formDescDetailedAm}
-                  onChange={(e) => setFormDescDetailedAm(e.target.value)}
-                  className="mt-1 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
+
+              {/* Tab 0: Basic Info */}
+              {addTab === 0 && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">{t('productName')} *</label>
+                      <Input value={formName} onChange={(e) => setFormName(e.target.value)} className="mt-1" placeholder="e.g. Traditional Habesha Dress" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">{t('sku')} *</label>
+                      <Input value={formSku} onChange={(e) => setFormSku(e.target.value)} className="mt-1" placeholder="e.g. HD-001" />
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-green-200 bg-green-50/50 p-3">
+                    <p className="text-xs font-semibold text-green-700 mb-2">Category Hierarchy</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-xs text-gray-500">Product Type</label>
+                        <select className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={formPt} onChange={(e) => setFormPt(e.target.value)}>
+                          <option value="">— Select —</option>
+                          {productTypeChips.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500">Category</label>
+                        <select className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={formMid} onChange={(e) => setFormMid(e.target.value)} disabled={!formPt}>
+                          <option value="">— Select —</option>
+                          {addMidOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500">Subcategory</label>
+                        <select className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={formSub} onChange={(e) => setFormSub(e.target.value)} disabled={!formMid}>
+                          <option value="">— Select —</option>
+                          {addSubOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">{t('quantity')} (initial stock)</label>
+                    <Input type="number" min="0" value={formQty} onChange={(e) => setFormQty(e.target.value)} className="mt-1 w-40" />
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 1: Pricing & Costs with Dynamic Pricing */}
+              {addTab === 1 && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Left: Cost Inputs */}
+                    <div className="space-y-3">
+                      <p className="text-xs font-bold text-gray-500 uppercase">Cost Breakdown (ETB)</p>
+                      <div className="space-y-2">
+                        <div><label className="text-xs text-gray-500">{t('costPrice')}</label><Input type="number" step="0.01" min="0" value={formCostPrice} onChange={(e) => setFormCostPrice(e.target.value)} className="mt-0.5" placeholder="Direct purchase cost" /></div>
+                        <div><label className="text-xs text-gray-500">{t('estimatedMaterialCost')}</label><Input type="number" step="0.01" min="0" value={formMaterialEst} onChange={(e) => setFormMaterialEst(e.target.value)} className="mt-0.5" placeholder="Fabric, thread, etc." /></div>
+                        <div><label className="text-xs text-gray-500">{t('estimatedLaborCost')}</label><Input type="number" step="0.01" min="0" value={formLaborEst} onChange={(e) => setFormLaborEst(e.target.value)} className="mt-0.5" placeholder="Sewing, design labor" /></div>
+                        <div><label className="text-xs text-gray-500">{t('defaultShippingFee')}</label><Input type="number" step="0.01" min="0" value={formShipFee} onChange={(e) => setFormShipFee(e.target.value)} className="mt-0.5" /></div>
+                        <div><label className="text-xs text-gray-500">{t('defaultServiceFee')}</label><Input type="number" step="0.01" min="0" value={formServiceFee} onChange={(e) => setFormServiceFee(e.target.value)} className="mt-0.5" /></div>
+                      </div>
+                      <div className="border-t pt-2">
+                        <p className="text-sm font-bold text-gray-700">Total Expenses: <span className="text-red-600">{totalExpenses.toLocaleString('en-ET', { minimumFractionDigits: 2 })} ETB</span></p>
+                      </div>
+                    </div>
+
+                    {/* Right: Dynamic Pricing Engine */}
+                    <div className="space-y-3">
+                      <p className="text-xs font-bold text-gray-500 uppercase">Dynamic Pricing Engine</p>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">{t('price')} (Selling Price) *</label>
+                        <Input type="number" step="0.01" min="0" value={formPrice} onChange={(e) => setFormPrice(e.target.value)} className="mt-1 text-lg font-bold" placeholder="Enter or pick from suggestions" />
+                      </div>
+
+                      {/* Suggested Prices */}
+                      {totalExpenses > 0 && (
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                          <p className="text-xs font-bold text-blue-700 mb-2">Suggested Prices</p>
+                          <div className="grid grid-cols-1 gap-1.5">
+                            {suggestedPrices.map(s => (
+                              <button
+                                key={s.label}
+                                type="button"
+                                onClick={() => setFormPrice(s.price.toFixed(2))}
+                                className={`flex items-center justify-between px-3 py-2 rounded-md text-sm transition-all ${
+                                  Math.abs(currentPrice - s.price) < 0.01
+                                    ? 'bg-green-600 text-white font-bold shadow'
+                                    : 'bg-white hover:bg-blue-100 text-gray-700 border border-blue-100'
+                                }`}
+                              >
+                                <span>{s.label}</span>
+                                <span className="font-mono font-bold">{s.price.toLocaleString('en-ET', { minimumFractionDigits: 2 })} ETB</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Live Margin Display */}
+                      {currentPrice > 0 && totalExpenses > 0 && (
+                        <div className={`rounded-lg border p-3 ${currentProfit >= 0 ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
+                          <div className="grid grid-cols-2 gap-3 text-center">
+                            <div>
+                              <p className="text-xs text-gray-500">Profit per Unit</p>
+                              <p className={`text-xl font-bold ${currentProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                                {currentProfit >= 0 ? '+' : ''}{currentProfit.toLocaleString('en-ET', { minimumFractionDigits: 2 })} ETB
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500">Margin</p>
+                              <p className={`text-xl font-bold ${currentMargin >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                                {currentMargin.toFixed(1)}%
+                              </p>
+                            </div>
+                          </div>
+                          {/* Margin bar */}
+                          <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${currentMargin >= 30 ? 'bg-green-500' : currentMargin >= 10 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${Math.min(Math.max(currentMargin, 0), 100)}%` }} />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1 text-center">{currentMargin >= 30 ? 'Healthy margin' : currentMargin >= 10 ? 'Low margin' : 'Very low / negative margin'}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: Descriptions */}
+              {addTab === 2 && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="text-sm font-medium text-gray-700">{t('productNameAm')}</label><Input value={formNameAm} onChange={(e) => setFormNameAm(e.target.value)} className="mt-1" placeholder="Amharic name" /></div>
+                    <div><label className="text-sm font-medium text-gray-700">{t('descriptionShort')}</label><Input value={formDescShort} onChange={(e) => setFormDescShort(e.target.value)} className="mt-1" placeholder="Short English description" /></div>
+                    <div><label className="text-sm font-medium text-gray-700">{t('descriptionShortAm')}</label><Input value={formDescShortAm} onChange={(e) => setFormDescShortAm(e.target.value)} className="mt-1" placeholder="Short Amharic description" /></div>
+                  </div>
+                  <div><label className="text-sm font-medium text-gray-700">{t('descriptionDetailed')}</label><textarea value={formDescDetailed} onChange={(e) => setFormDescDetailed(e.target.value)} className="mt-1 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Detailed description (English)" /></div>
+                  <div><label className="text-sm font-medium text-gray-700">{t('descriptionDetailedAm')}</label><textarea value={formDescDetailedAm} onChange={(e) => setFormDescDetailedAm(e.target.value)} className="mt-1 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Detailed description (Amharic)" /></div>
+                </div>
+              )}
+
+              {/* Tab 3: Garment Details */}
+              {addTab === 3 && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="text-sm font-medium text-gray-700">{t('fabricComposition')}</label><Input value={formFabric} onChange={(e) => setFormFabric(e.target.value)} className="mt-1" placeholder="e.g. 100% Cotton" /></div>
+                    <div><label className="text-sm font-medium text-gray-700">{t('fabricCompositionAm')}</label><Input value={formFabricAm} onChange={(e) => setFormFabricAm(e.target.value)} className="mt-1" /></div>
+                  </div>
+                  <div><label className="text-sm font-medium text-gray-700">{t('careInstructions')}</label><textarea value={formCare} onChange={(e) => setFormCare(e.target.value)} className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
+                  <div><label className="text-sm font-medium text-gray-700">{t('careInstructionsAm')}</label><textarea value={formCareAm} onChange={(e) => setFormCareAm(e.target.value)} className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
+                  <div><label className="text-sm font-medium text-gray-700">{t('designNotes')}</label><textarea value={formDesignNotes} onChange={(e) => setFormDesignNotes(e.target.value)} className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
+                  <div><label className="text-sm font-medium text-gray-700">{t('designNotesAm')}</label><textarea value={formDesignNotesAm} onChange={(e) => setFormDesignNotesAm(e.target.value)} className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="text-sm font-medium text-gray-700">{t('measurementGuide')}</label><Input value={formMeas} onChange={(e) => setFormMeas(e.target.value)} className="mt-1" /></div>
+                    <div><label className="text-sm font-medium text-gray-700">{t('measurementGuideAm')}</label><Input value={formMeasAm} onChange={(e) => setFormMeasAm(e.target.value)} className="mt-1" /></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer with navigation + save */}
+              <div className="flex items-center justify-between border-t pt-3">
+                <div className="flex gap-2">
+                  {addTab > 0 && <Button variant="outline" size="sm" onClick={() => setAddTab(addTab - 1)}>← Back</Button>}
+                  {addTab < TAB_ITEMS.length - 1 && <Button variant="outline" size="sm" onClick={() => setAddTab(addTab + 1)}>Next →</Button>}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" type="button" onClick={() => setAddOpen(false)}>Cancel</Button>
+                  <Button className="bg-green-600 hover:bg-green-700" type="button" disabled={saving} onClick={submitAdd}>{saving ? '…' : 'Save Product'}</Button>
+                </div>
               </div>
             </div>
-          </details>
-
-          <details className="rounded-lg border border-gray-200 p-3" open>
-            <summary className="cursor-pointer text-sm font-semibold text-gray-800">
-              {t('productFeesSection')} ({t('currencyETB')})
-            </summary>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('defaultShippingFee')}</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formShipFee}
-                  onChange={(e) => setFormShipFee(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('defaultServiceFee')}</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formServiceFee}
-                  onChange={(e) => setFormServiceFee(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-            </div>
-          </details>
-
-          <details className="rounded-lg border border-gray-200 p-3" open>
-            <summary className="cursor-pointer text-sm font-semibold text-gray-800">{t('productGarmentSection')}</summary>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('fabricComposition')}</label>
-                <Input value={formFabric} onChange={(e) => setFormFabric(e.target.value)} className="mt-1" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('fabricCompositionAm')}</label>
-                <Input value={formFabricAm} onChange={(e) => setFormFabricAm(e.target.value)} className="mt-1" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('careInstructions')}</label>
-                <textarea
-                  value={formCare}
-                  onChange={(e) => setFormCare(e.target.value)}
-                  className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('careInstructionsAm')}</label>
-                <textarea
-                  value={formCareAm}
-                  onChange={(e) => setFormCareAm(e.target.value)}
-                  className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('designNotes')}</label>
-                <textarea
-                  value={formDesignNotes}
-                  onChange={(e) => setFormDesignNotes(e.target.value)}
-                  className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('designNotesAm')}</label>
-                <textarea
-                  value={formDesignNotesAm}
-                  onChange={(e) => setFormDesignNotesAm(e.target.value)}
-                  className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('measurementGuide')}</label>
-                <Input value={formMeas} onChange={(e) => setFormMeas(e.target.value)} className="mt-1" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('measurementGuideAm')}</label>
-                <Input value={formMeasAm} onChange={(e) => setFormMeasAm(e.target.value)} className="mt-1" />
-              </div>
-            </div>
-          </details>
-
-          <details className="rounded-lg border border-amber-200 bg-amber-50/30 p-3" open>
-            <summary className="cursor-pointer text-sm font-semibold text-gray-800">{t('productPnLSection')}</summary>
-            <p className="mt-2 text-xs text-gray-600">{t('pnlDisclaimer')}</p>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('costPrice')}</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formCostPrice}
-                  onChange={(e) => setFormCostPrice(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('estimatedMaterialCost')}</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formMaterialEst}
-                  onChange={(e) => setFormMaterialEst(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('estimatedLaborCost')}</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formLaborEst}
-                  onChange={(e) => setFormLaborEst(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-            </div>
-          </details>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" type="button" onClick={() => setAddOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-green-600 hover:bg-green-700"
-              type="button"
-              disabled={saving}
-              onClick={submitAdd}
-            >
-              {saving ? '…' : 'Save'}
-            </Button>
-          </div>
-        </div>
+          )
+        })()}
       </ModalShell>
 
       <ModalShell open={editOpen} wide title="Edit product" onClose={() => setEditOpen(false)}>

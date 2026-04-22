@@ -39,6 +39,8 @@ export const translations = {
     navWorkflow: 'Workflow',
     navAssign: 'Order Assignment',
     navRawMaterials: 'Raw Materials',
+    navPayroll: 'Payroll',
+    navFinance: 'Finance',
     navReports: 'Reports',
 
     // Staff hub (sidebar + pages)
@@ -240,6 +242,8 @@ export const translations = {
     navWorkflow: 'ወርክፍሎው',
     navAssign: 'የትዕዛዝ ምደባ',
     navRawMaterials: 'ጥሬ ዕቃዎች',
+    navPayroll: 'ደመወዝ',
+    navFinance: 'ፋይናንስ',
     navReports: 'ሪፖርቶች',
 
     staffSectionTitle: 'ሰራተኞች',

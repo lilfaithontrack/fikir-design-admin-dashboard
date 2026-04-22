@@ -28,6 +28,8 @@ import {
   GitBranch,
   UserCheck,
   Scissors,
+  Banknote,
+  Calculator,
 } from 'lucide-react'
 
 const baseNavItems = [
@@ -43,6 +45,8 @@ const baseNavItems = [
   { href: '/dashboard/workflow', icon: GitBranch, label: 'navWorkflow' },
   { href: '/dashboard/orders/assign', icon: UserCheck, label: 'navAssign' },
   { href: '/dashboard/raw-materials', icon: Scissors, label: 'navRawMaterials' },
+  { href: '/dashboard/payroll', icon: Banknote, label: 'navPayroll' },
+  { href: '/dashboard/finance', icon: Calculator, label: 'navFinance' },
   { href: '/dashboard/reports', icon: BarChart3, label: 'navReports' },
 ] as const
 
