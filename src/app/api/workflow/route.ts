@@ -112,14 +112,14 @@ export async function POST(req: NextRequest) {
 
   // Map stage → order status
   const STAGE_STATUS_MAP: Partial<Record<WorkflowStage, string>> = {
-    crm_data: 'pending',
-    sales_staff: 'pending',
-    designer: 'design_in_progress',
+    crm_data:              'pending',
+    sales_staff:           'assigned',
+    designer:              'design_in_progress',
     sewer_production_team: 'sewing_in_progress',
-    store_manager: 'sewing_completed',
-    production: 'sewing_in_progress',
-    quality_control: 'quality_check',
-    delivery_team: 'ready_for_delivery',
+    store_manager:         'sewing_completed',
+    production:            'quality_check',
+    quality_control:       'quality_check',
+    delivery_team:         'ready_for_delivery',
   };
 
   const [updatedOrder, event] = await prisma.$transaction([

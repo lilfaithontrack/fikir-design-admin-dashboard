@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { getCurrentUserFromRequest } from '@/lib/session-user';
 
 // GET /api/customers/[id] - Get single customer
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const customer = await (prisma as any).customer.findUnique({
       where: { id: parseInt(params.id) },
@@ -40,6 +44,9 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const body = await request.json();
     const {
@@ -84,6 +91,11 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!['admin', 'manager'].includes(user.role))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
   try {
     await prisma.customer.delete({
       where: { id: parseInt(params.id) },

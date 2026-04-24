@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { getCurrentUserFromRequest } from '@/lib/session-user';
 
 // GET /api/inventory - Get all inventory
 export async function GET(request: NextRequest) {
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const productId = searchParams.get('productId');
@@ -46,6 +50,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/inventory - Create inventory record
 export async function POST(request: NextRequest) {
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const body = await request.json();
 
@@ -68,6 +75,9 @@ export async function POST(request: NextRequest) {
 
 // PUT /api/inventory - Update inventory
 export async function PUT(request: NextRequest) {
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const body = await request.json();
     const id = body.id;

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { getCurrentUserFromRequest } from '@/lib/session-user';
 
 // GET /api/product-types - Get all product types
 export async function GET(request: NextRequest) {
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const isActive = searchParams.get('isActive');
@@ -35,6 +39,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/product-types - Create new product type
 export async function POST(request: NextRequest) {
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const body = await request.json();
 

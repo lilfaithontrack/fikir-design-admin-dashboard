@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { CategoryType, Prisma } from '@prisma/client';
+import { getCurrentUserFromRequest } from '@/lib/session-user';
 import prisma from '@/lib/prisma';
 import {
   getCategoryTree,
@@ -11,6 +12,9 @@ import {
 
 // GET /api/categories - Get all categories or category tree
 export async function GET(request: NextRequest) {
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const tree = searchParams.get('tree') === 'true';
@@ -152,6 +156,9 @@ function toCategoryUpdateInput(
 
 // POST /api/categories - Create new category
 export async function POST(request: NextRequest) {
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const body = await request.json() as Record<string, unknown>;
     const rawType = String(body.categoryType || 'subcategory');
