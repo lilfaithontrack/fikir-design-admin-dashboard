@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Loader2, Plus, TrendingUp, TrendingDown, DollarSign, Trash2, BarChart3 } from 'lucide-react'
+import { Loader2, Plus, TrendingUp, TrendingDown, DollarSign, Trash2, BarChart3, Download } from 'lucide-react'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { apiFetch } from '@/lib/api-fetch'
+import { ExportDropdown } from '@/components/ExportDropdown'
+import { exportToExcel, exportToPDF, ColumnHelpers } from '@/lib/export-utils'
 
 interface Transaction {
   id: number; type: string; category: string; amount: string; title: string
@@ -161,9 +163,57 @@ export default function FinancePage() {
           <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36 h-9 text-sm" placeholder="From" />
           <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36 h-9 text-sm" placeholder="To" />
         </div>
-        <Button className="bg-green-600 hover:bg-green-700" onClick={() => { setFType('income'); setFCategory(''); setFAmount(''); setFTitle(''); setFDescription(''); setFDate(new Date().toISOString().slice(0, 10)); setFPaymentMethod(''); setFPaymentRef(''); setAddOpen(true) }}>
-          <Plus size={16} className="mr-1" /> Add Transaction
-        </Button>
+        <div className="flex gap-2">
+          <ExportDropdown
+            label="Export"
+            onExportExcel={() => {
+              exportToExcel({
+                title: 'Finance Report',
+                subtitle: `Generated on ${new Date().toLocaleDateString('en-ET')}`,
+                filename: `fikir-finance-${new Date().toISOString().split('T')[0]}`,
+                companyName: 'Fikir Design',
+                companyInfo: ['Addis Ababa, Ethiopia', 'fikirdesign.et'],
+                columns: [
+                  ColumnHelpers.date('Date', 'transactionDate', 15),
+                  ColumnHelpers.status('Type', 'type', 10),
+                  ColumnHelpers.text('Category', 'categoryLabel', 18),
+                  ColumnHelpers.text('Title', 'title', 30),
+                  ColumnHelpers.text('Payment', 'paymentMethod', 12),
+                  ColumnHelpers.currency('Amount', 'amount', 15),
+                  ColumnHelpers.text('By', 'createdByName', 15),
+                ],
+                data: transactions.map(t => ({
+                  ...t,
+                  categoryLabel: [...INCOME_CATS, ...EXPENSE_CATS].find(c => c.value === t.category)?.label || t.category,
+                  createdByName: t.createdBy ? `${t.createdBy.firstName} ${t.createdBy.lastName}` : '-'
+                }))
+              })
+            }}
+            onExportPDF={() => {
+              exportToPDF({
+                title: 'Finance Report',
+                subtitle: `Total: ${transactions.length} transactions`,
+                filename: `fikir-finance-${new Date().toISOString().split('T')[0]}`,
+                companyName: 'Fikir Design',
+                companyInfo: ['Addis Ababa, Ethiopia', 'fikirdesign.et'],
+                columns: [
+                  ColumnHelpers.date('Date', 'transactionDate', 15),
+                  ColumnHelpers.status('Type', 'type', 12),
+                  ColumnHelpers.text('Category', 'categoryLabel', 20),
+                  ColumnHelpers.text('Title', 'title', 35),
+                  ColumnHelpers.currency('Amount', 'amount', 18),
+                ],
+                data: transactions.map(t => ({
+                  ...t,
+                  categoryLabel: [...INCOME_CATS, ...EXPENSE_CATS].find(c => c.value === t.category)?.label || t.category
+                }))
+              })
+            }}
+          />
+          <Button className="bg-green-600 hover:bg-green-700" onClick={() => { setFType('income'); setFCategory(''); setFAmount(''); setFTitle(''); setFDescription(''); setFDate(new Date().toISOString().slice(0, 10)); setFPaymentMethod(''); setFPaymentRef(''); setAddOpen(true) }}>
+            <Plus size={16} className="mr-1" /> Add Transaction
+          </Button>
+        </div>
       </div>
 
       {/* Table */}

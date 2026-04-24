@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Loader2, Plus, DollarSign, Users, CheckCircle, Clock, XCircle } from 'lucide-react'
+import { Loader2, Plus, DollarSign, Users, CheckCircle, Clock, XCircle, Download } from 'lucide-react'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { apiFetch } from '@/lib/api-fetch'
+import { ExportDropdown } from '@/components/ExportDropdown'
+import { exportToExcel, exportToPDF, ColumnHelpers } from '@/lib/export-utils'
 
 interface Staff { id: number; firstName: string; lastName: string; role: string; phone?: string }
 interface PayrollRecord {
@@ -147,9 +149,56 @@ export default function PayrollPage() {
             </Button>
           ))}
         </div>
-        <Button className="bg-green-600 hover:bg-green-700" onClick={() => { setFUserId(''); setFPeriodStart(''); setFPeriodEnd(''); setFBaseSalary(''); setFOvertimePay('0'); setFBonus('0'); setFCommission('0'); setFAllowances('0'); setFTax('0'); setFPension('0'); setFOtherDed('0'); setFNotes(''); setAddOpen(true) }}>
-          <Plus size={16} className="mr-1" /> New Payroll
-        </Button>
+        <div className="flex gap-2">
+          <ExportDropdown
+            label="Export"
+            onExportExcel={() => {
+              exportToExcel({
+                title: 'Payroll Report',
+                subtitle: `Generated on ${new Date().toLocaleDateString('en-ET')}`,
+                filename: `fikir-payroll-${new Date().toISOString().split('T')[0]}`,
+                companyName: 'Fikir Design',
+                companyInfo: ['Addis Ababa, Ethiopia', 'fikirdesign.et'],
+                columns: [
+                  ColumnHelpers.text('Staff', 'staffName', 20),
+                  ColumnHelpers.text('Period', 'period', 18),
+                  ColumnHelpers.currency('Gross', 'grossPay', 14),
+                  ColumnHelpers.currency('Deductions', 'totalDeductions', 14),
+                  ColumnHelpers.currency('Net Pay', 'netPay', 14),
+                  ColumnHelpers.status('Status', 'status', 12),
+                ],
+                data: records.map(r => ({
+                  ...r,
+                  staffName: `${r.user.firstName} ${r.user.lastName}`,
+                  period: `${new Date(r.periodStart).toLocaleDateString()} - ${new Date(r.periodEnd).toLocaleDateString()}`
+                }))
+              })
+            }}
+            onExportPDF={() => {
+              exportToPDF({
+                title: 'Payroll Report',
+                subtitle: `Total Records: ${records.length}`,
+                filename: `fikir-payroll-${new Date().toISOString().split('T')[0]}`,
+                companyName: 'Fikir Design',
+                companyInfo: ['Addis Ababa, Ethiopia', 'fikirdesign.et'],
+                columns: [
+                  ColumnHelpers.text('Staff', 'staffName', 25),
+                  ColumnHelpers.text('Period', 'period', 20),
+                  ColumnHelpers.currency('Net Pay', 'netPay', 18),
+                  ColumnHelpers.status('Status', 'status', 15),
+                ],
+                data: records.map(r => ({
+                  ...r,
+                  staffName: `${r.user.firstName} ${r.user.lastName}`,
+                  period: `${new Date(r.periodStart).toLocaleDateString()} - ${new Date(r.periodEnd).toLocaleDateString()}`
+                }))
+              })
+            }}
+          />
+          <Button className="bg-green-600 hover:bg-green-700" onClick={() => { setFUserId(''); setFPeriodStart(''); setFPeriodEnd(''); setFBaseSalary(''); setFOvertimePay('0'); setFBonus('0'); setFCommission('0'); setFAllowances('0'); setFTax('0'); setFPension('0'); setFOtherDed('0'); setFNotes(''); setAddOpen(true) }}>
+            <Plus size={16} className="mr-1" /> New Payroll
+          </Button>
+        </div>
       </div>
 
       {/* Table */}

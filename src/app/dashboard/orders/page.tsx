@@ -5,9 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search, Filter, Download, Eye, Printer, ShoppingCart, Clock, CheckCircle, Loader2 } from 'lucide-react'
+import { Search, Filter, Eye, Printer, ShoppingCart, Clock, CheckCircle, Loader2 } from 'lucide-react'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { apiFetch } from '@/lib/api-fetch'
+import { ExportDropdown } from '@/components/ExportDropdown'
+import { exportToExcel, exportToPDF, ColumnHelpers } from '@/lib/export-utils'
 
 interface Order {
   id: number
@@ -115,10 +117,51 @@ export default function OrdersPage() {
             <p className="text-gray-500 mt-1">Track and manage customer orders</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" className="border-green-600 text-green-600 hover:bg-green-50">
-              <Download className="mr-2" size={18} />
-              {t('export')}
-            </Button>
+            <ExportDropdown
+              label={t('export')}
+              onExportExcel={() => {
+                exportToExcel({
+                  title: 'Orders Report',
+                  subtitle: `Generated on ${new Date().toLocaleDateString('en-ET')}`,
+                  filename: `fikir-orders-${new Date().toISOString().split('T')[0]}`,
+                  companyName: 'Fikir Design',
+                  companyInfo: ['Addis Ababa, Ethiopia', 'fikirdesign.et'],
+                  columns: [
+                    ColumnHelpers.text('Order #', 'orderNumber', 15),
+                    ColumnHelpers.text('Customer', 'customerName', 20),
+                    ColumnHelpers.status('Status', 'status', 12),
+                    ColumnHelpers.number('Items', 'itemCount', 10),
+                    ColumnHelpers.currency('Total', 'total', 15),
+                    ColumnHelpers.date('Date', 'createdAt', 15),
+                  ],
+                  data: filteredOrders.map(o => ({
+                    ...o,
+                    customerName: o.customer ? `${o.customer.firstName} ${o.customer.lastName}` : 'Guest',
+                    itemCount: o.items?.length || 0
+                  }))
+                })
+              }}
+              onExportPDF={() => {
+                exportToPDF({
+                  title: 'Orders Report',
+                  subtitle: `Total: ${filteredOrders.length} orders`,
+                  filename: `fikir-orders-${new Date().toISOString().split('T')[0]}`,
+                  companyName: 'Fikir Design',
+                  companyInfo: ['Addis Ababa, Ethiopia', 'fikirdesign.et'],
+                  columns: [
+                    ColumnHelpers.text('Order #', 'orderNumber', 20),
+                    ColumnHelpers.text('Customer', 'customerName', 25),
+                    ColumnHelpers.status('Status', 'status', 15),
+                    ColumnHelpers.currency('Total', 'total', 18),
+                    ColumnHelpers.date('Date', 'createdAt', 15),
+                  ],
+                  data: filteredOrders.map(o => ({
+                    ...o,
+                    customerName: o.customer ? `${o.customer.firstName} ${o.customer.lastName}` : 'Guest'
+                  }))
+                })
+              }}
+            />
             <Button className="bg-yellow-600 hover:bg-yellow-700">
               {t('addOrder')}
             </Button>

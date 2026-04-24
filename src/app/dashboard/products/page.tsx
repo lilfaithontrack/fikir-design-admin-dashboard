@@ -6,10 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge, type BadgeProps } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search, Plus, Filter, Download, Edit, Trash2, Eye, Package, Loader2 } from 'lucide-react'
+import { Search, Plus, Filter, Edit, Trash2, Eye, Package, Loader2 } from 'lucide-react'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { apiFetch } from '@/lib/api-fetch'
 import { computeProductMarginPreview, decimalStringToNumber } from '@/lib/product-margin'
+import { ExportDropdown } from '@/components/ExportDropdown'
+import { exportToExcel, exportToPDF, ColumnHelpers } from '@/lib/export-utils'
+import { ProductImageUploader } from '@/components/ProductImageUploader'
 
 interface Product {
   id: number
@@ -223,6 +226,7 @@ export default function ProductsPage() {
   const [viewOpen, setViewOpen] = useState(false)
   const [viewProduct, setViewProduct] = useState<ProductDetail | null>(null)
   const [addTab, setAddTab] = useState(0)
+  const [editTab, setEditTab] = useState(0)
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -326,6 +330,7 @@ export default function ProductsPage() {
     setFormMeasAm('')
     setAddTab(0)
     setAddOpen(true)
+    setEditTab(0)
   }
 
   const submitAdd = async () => {
@@ -379,6 +384,7 @@ export default function ProductsPage() {
 
   const openEdit = (p: Product) => {
     const { pt, mid, sub } = resolveCascadeFromCategoryId(p.categoryId ?? null, categories)
+    setEditTab(0)
     setEditId(p.id)
     setEditName(p.name)
     setEditSku(p.sku)
@@ -553,7 +559,7 @@ export default function ProductsPage() {
             : 0
           const currentProfit = currentPrice - totalExpenses
 
-          const TAB_ITEMS = ['Basic Info', 'Pricing & Costs', 'Descriptions', 'Garment Details']
+          const TAB_ITEMS = ['Basic Info', 'Pricing & Costs', 'Descriptions', 'Garment Details', 'Images']
 
           return (
             <div className="space-y-4">
@@ -714,6 +720,20 @@ export default function ProductsPage() {
                 </div>
               )}
 
+              {/* Tab 4: Images (save-first) */}
+              {addTab === 4 && (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-gray-500">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                    <Package className="text-green-600" size={32} />
+                  </div>
+                  <p className="text-base font-medium text-gray-700">Save the product first</p>
+                  <p className="text-sm mt-1">After saving, open the edit dialog to upload and manage product images.</p>
+                  <Button className="mt-4 bg-green-600 hover:bg-green-700" disabled={saving} onClick={submitAdd}>
+                    {saving ? '…' : 'Save Product Now'}
+                  </Button>
+                </div>
+              )}
+
               {/* Tab 3: Garment Details */}
               {addTab === 3 && (
                 <div className="space-y-3">
@@ -748,270 +768,216 @@ export default function ProductsPage() {
         })()}
       </ModalShell>
 
-      <ModalShell open={editOpen} wide title="Edit product" onClose={() => setEditOpen(false)}>
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-gray-700">{t('productName')}</label>
-            <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="mt-1" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">{t('sku')}</label>
-            <Input value={editSku} onChange={(e) => setEditSku(e.target.value)} className="mt-1" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">{t('price')} (ETB)</label>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={editPrice}
-              onChange={(e) => setEditPrice(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">{t('status')}</label>
-            <select
-              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm capitalize"
-              value={editStatus}
-              onChange={(e) => setEditStatus(e.target.value)}
-            >
-              {['draft', 'active', 'archived', 'out_of_stock'].map((s) => (
-                <option key={s} value={s}>
-                  {s.replace('_', ' ')}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Product type</label>
-            <select
-              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={editPt}
-              onChange={(e) => {
-                setEditPt(e.target.value)
-                setEditMid('')
-                setEditSub('')
-              }}
-            >
-              <option value="">— Select —</option>
-              {productTypeChips.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Category</label>
-            <select
-              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={editMid}
-              onChange={(e) => {
-                setEditMid(e.target.value)
-                setEditSub('')
-              }}
-              disabled={!editPt}
-            >
-              <option value="">— Select —</option>
-              {editMidOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Subcategory</label>
-            <select
-              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={editSub}
-              onChange={(e) => setEditSub(e.target.value)}
-              disabled={!editMid}
-            >
-              <option value="">— Select —</option>
-              {editSubOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
+      <ModalShell open={editOpen} wide title="Edit Product" onClose={() => setEditOpen(false)}>
+        {(() => {
+          const EDIT_TABS = ['Basic Info', 'Pricing & Costs', 'Descriptions', 'Garment Details', 'Images']
+          return (
+            <div className="space-y-4">
+              {/* Tab Navigation */}
+              <div className="flex gap-1 border-b border-gray-200 overflow-x-auto">
+                {EDIT_TABS.map((tab, i) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setEditTab(i)}
+                    className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${
+                      editTab === i
+                        ? 'bg-green-600 text-white border-b-2 border-green-600'
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
 
-          <details className="rounded-lg border border-gray-200 bg-gray-50/50 p-3" open>
-            <summary className="cursor-pointer text-sm font-semibold text-gray-800">
-              {t('productBilingualSection')}
-            </summary>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('productNameAm')}</label>
-                <Input value={editNameAm} onChange={(e) => setEditNameAm(e.target.value)} className="mt-1" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('descriptionShort')}</label>
-                <Input value={editDescShort} onChange={(e) => setEditDescShort(e.target.value)} className="mt-1" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('descriptionShortAm')}</label>
-                <Input value={editDescShortAm} onChange={(e) => setEditDescShortAm(e.target.value)} className="mt-1" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('descriptionDetailed')}</label>
-                <textarea
-                  value={editDescDetailed}
-                  onChange={(e) => setEditDescDetailed(e.target.value)}
-                  className="mt-1 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('descriptionDetailedAm')}</label>
-                <textarea
-                  value={editDescDetailedAm}
-                  onChange={(e) => setEditDescDetailedAm(e.target.value)}
-                  className="mt-1 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
+              {/* Tab 0: Basic Info */}
+              {editTab === 0 && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <label className="text-sm font-medium text-gray-700">{t('productName')}</label>
+                      <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">{t('sku')}</label>
+                      <Input value={editSku} onChange={(e) => setEditSku(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">{t('status')}</label>
+                      <select
+                        className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm capitalize"
+                        value={editStatus}
+                        onChange={(e) => setEditStatus(e.target.value)}
+                      >
+                        {['draft', 'active', 'archived', 'out_of_stock'].map((s) => (
+                          <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Product Type</label>
+                      <select
+                        className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={editPt}
+                        onChange={(e) => { setEditPt(e.target.value); setEditMid(''); setEditSub('') }}
+                      >
+                        <option value="">— Select —</option>
+                        {productTypeChips.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Category</label>
+                      <select
+                        className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={editMid}
+                        onChange={(e) => { setEditMid(e.target.value); setEditSub('') }}
+                        disabled={!editPt}
+                      >
+                        <option value="">— Select —</option>
+                        {editMidOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Subcategory</label>
+                      <select
+                        className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={editSub}
+                        onChange={(e) => setEditSub(e.target.value)}
+                        disabled={!editMid}
+                      >
+                        <option value="">— Select —</option>
+                        {editSubOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 1: Pricing & Costs */}
+              {editTab === 1 && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Selling Price</h3>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">{t('price')} (ETB)</label>
+                        <Input type="number" step="0.01" min="0" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} className="mt-1" />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">{t('defaultShippingFee')}</label>
+                        <Input type="number" step="0.01" min="0" value={editShipFee} onChange={(e) => setEditShipFee(e.target.value)} className="mt-1" />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">{t('defaultServiceFee')}</label>
+                        <Input type="number" step="0.01" min="0" value={editServiceFee} onChange={(e) => setEditServiceFee(e.target.value)} className="mt-1" />
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-semibold text-amber-700 uppercase tracking-wide">Cost (Internal)</h3>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">{t('costPrice')}</label>
+                        <Input type="number" step="0.01" min="0" value={editCostPrice} onChange={(e) => setEditCostPrice(e.target.value)} className="mt-1" />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">{t('estimatedMaterialCost')}</label>
+                        <Input type="number" step="0.01" min="0" value={editMaterialEst} onChange={(e) => setEditMaterialEst(e.target.value)} className="mt-1" />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">{t('estimatedLaborCost')}</label>
+                        <Input type="number" step="0.01" min="0" value={editLaborEst} onChange={(e) => setEditLaborEst(e.target.value)} className="mt-1" />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Live margin */}
+                  {(() => {
+                    const totalCost = (Number(editCostPrice) || 0) + (Number(editMaterialEst) || 0) + (Number(editLaborEst) || 0)
+                    const sellingPrice = Number(editPrice) || 0
+                    const margin = sellingPrice > 0 && totalCost > 0 ? ((sellingPrice - totalCost) / sellingPrice) * 100 : 0
+                    const profit = sellingPrice - totalCost
+                    const health = margin >= 30 ? 'text-green-600' : margin >= 10 ? 'text-yellow-600' : 'text-red-600'
+                    return totalCost > 0 ? (
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 flex items-center gap-6 text-sm">
+                        <div><span className="text-gray-500">Total Cost:</span> <span className="font-semibold">{totalCost.toLocaleString()} ETB</span></div>
+                        <div><span className="text-gray-500">Profit:</span> <span className={`font-semibold ${health}`}>{profit.toLocaleString()} ETB</span></div>
+                        <div><span className="text-gray-500">Margin:</span> <span className={`font-semibold ${health}`}>{margin.toFixed(1)}%</span></div>
+                      </div>
+                    ) : null
+                  })()}
+                </div>
+              )}
+
+              {/* Tab 2: Descriptions */}
+              {editTab === 2 && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">{t('productNameAm')}</label>
+                      <Input value={editNameAm} onChange={(e) => setEditNameAm(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">{t('descriptionShort')}</label>
+                      <Input value={editDescShort} onChange={(e) => setEditDescShort(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">{t('descriptionShortAm')}</label>
+                      <Input value={editDescShortAm} onChange={(e) => setEditDescShortAm(e.target.value)} className="mt-1" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">{t('descriptionDetailed')}</label>
+                    <textarea value={editDescDetailed} onChange={(e) => setEditDescDetailed(e.target.value)} className="mt-1 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">{t('descriptionDetailedAm')}</label>
+                    <textarea value={editDescDetailedAm} onChange={(e) => setEditDescDetailedAm(e.target.value)} className="mt-1 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: Garment Details */}
+              {editTab === 3 && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="text-sm font-medium text-gray-700">{t('fabricComposition')}</label><Input value={editFabric} onChange={(e) => setEditFabric(e.target.value)} className="mt-1" /></div>
+                    <div><label className="text-sm font-medium text-gray-700">{t('fabricCompositionAm')}</label><Input value={editFabricAm} onChange={(e) => setEditFabricAm(e.target.value)} className="mt-1" /></div>
+                  </div>
+                  <div><label className="text-sm font-medium text-gray-700">{t('careInstructions')}</label><textarea value={editCare} onChange={(e) => setEditCare(e.target.value)} className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
+                  <div><label className="text-sm font-medium text-gray-700">{t('careInstructionsAm')}</label><textarea value={editCareAm} onChange={(e) => setEditCareAm(e.target.value)} className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
+                  <div><label className="text-sm font-medium text-gray-700">{t('designNotes')}</label><textarea value={editDesignNotes} onChange={(e) => setEditDesignNotes(e.target.value)} className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
+                  <div><label className="text-sm font-medium text-gray-700">{t('designNotesAm')}</label><textarea value={editDesignNotesAm} onChange={(e) => setEditDesignNotesAm(e.target.value)} className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="text-sm font-medium text-gray-700">{t('measurementGuide')}</label><Input value={editMeas} onChange={(e) => setEditMeas(e.target.value)} className="mt-1" /></div>
+                    <div><label className="text-sm font-medium text-gray-700">{t('measurementGuideAm')}</label><Input value={editMeasAm} onChange={(e) => setEditMeasAm(e.target.value)} className="mt-1" /></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 4: Images — live uploader */}
+              {editTab === 4 && editId !== null && (
+                <ProductImageUploader productId={editId} />
+              )}
+
+              {/* Footer */}
+              <div className="flex items-center justify-between border-t pt-3">
+                <div className="flex gap-2">
+                  {editTab > 0 && <Button variant="outline" size="sm" onClick={() => setEditTab(editTab - 1)}>← Back</Button>}
+                  {editTab < EDIT_TABS.length - 1 && <Button variant="outline" size="sm" onClick={() => setEditTab(editTab + 1)}>Next →</Button>}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" type="button" onClick={() => setEditOpen(false)}>Cancel</Button>
+                  {editTab !== 4 && (
+                    <Button className="bg-green-600 hover:bg-green-700" type="button" disabled={saving} onClick={submitEdit}>
+                      {saving ? '…' : 'Update Product'}
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
-          </details>
-
-          <details className="rounded-lg border border-gray-200 p-3" open>
-            <summary className="cursor-pointer text-sm font-semibold text-gray-800">
-              {t('productFeesSection')} ({t('currencyETB')})
-            </summary>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('defaultShippingFee')}</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editShipFee}
-                  onChange={(e) => setEditShipFee(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('defaultServiceFee')}</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editServiceFee}
-                  onChange={(e) => setEditServiceFee(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-            </div>
-          </details>
-
-          <details className="rounded-lg border border-gray-200 p-3" open>
-            <summary className="cursor-pointer text-sm font-semibold text-gray-800">{t('productGarmentSection')}</summary>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('fabricComposition')}</label>
-                <Input value={editFabric} onChange={(e) => setEditFabric(e.target.value)} className="mt-1" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('fabricCompositionAm')}</label>
-                <Input value={editFabricAm} onChange={(e) => setEditFabricAm(e.target.value)} className="mt-1" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('careInstructions')}</label>
-                <textarea
-                  value={editCare}
-                  onChange={(e) => setEditCare(e.target.value)}
-                  className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('careInstructionsAm')}</label>
-                <textarea
-                  value={editCareAm}
-                  onChange={(e) => setEditCareAm(e.target.value)}
-                  className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('designNotes')}</label>
-                <textarea
-                  value={editDesignNotes}
-                  onChange={(e) => setEditDesignNotes(e.target.value)}
-                  className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">{t('designNotesAm')}</label>
-                <textarea
-                  value={editDesignNotesAm}
-                  onChange={(e) => setEditDesignNotesAm(e.target.value)}
-                  className="mt-1 flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('measurementGuide')}</label>
-                <Input value={editMeas} onChange={(e) => setEditMeas(e.target.value)} className="mt-1" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('measurementGuideAm')}</label>
-                <Input value={editMeasAm} onChange={(e) => setEditMeasAm(e.target.value)} className="mt-1" />
-              </div>
-            </div>
-          </details>
-
-          <details className="rounded-lg border border-amber-200 bg-amber-50/30 p-3" open>
-            <summary className="cursor-pointer text-sm font-semibold text-gray-800">{t('productPnLSection')}</summary>
-            <p className="mt-2 text-xs text-gray-600">{t('pnlDisclaimer')}</p>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('costPrice')}</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editCostPrice}
-                  onChange={(e) => setEditCostPrice(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('estimatedMaterialCost')}</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editMaterialEst}
-                  onChange={(e) => setEditMaterialEst(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">{t('estimatedLaborCost')}</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editLaborEst}
-                  onChange={(e) => setEditLaborEst(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-            </div>
-          </details>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" type="button" onClick={() => setEditOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-green-600 hover:bg-green-700"
-              type="button"
-              disabled={saving}
-              onClick={submitEdit}
-            >
-              {saving ? '…' : 'Update'}
-            </Button>
-          </div>
-        </div>
+          )
+        })()}
       </ModalShell>
 
       <ModalShell open={viewOpen} wide title={t('productDetails')} onClose={() => setViewOpen(false)}>
@@ -1103,10 +1069,56 @@ export default function ProductsPage() {
           <p className="text-gray-500 mt-1">Manage your product catalog and inventory</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="border-green-600 text-green-600 hover:bg-green-50">
-            <Download className="mr-2" size={18} />
-            {t('export')}
-          </Button>
+          <ExportDropdown
+            label={t('export')}
+            onExportExcel={() => {
+              const filtered = filteredProducts
+              exportToExcel({
+                title: 'Products Report',
+                subtitle: `Generated on ${new Date().toLocaleDateString('en-ET')}`,
+                filename: `fikir-products-${new Date().toISOString().split('T')[0]}`,
+                companyName: 'Fikir Design',
+                companyInfo: ['Addis Ababa, Ethiopia', 'fikirdesign.et', 'Tel: +251 9XX XXX XXX'],
+                columns: [
+                  ColumnHelpers.text('Product Name', 'name', 25),
+                  ColumnHelpers.text('SKU', 'sku', 15),
+                  ColumnHelpers.status('Status', 'status', 12),
+                  ColumnHelpers.number('Stock', 'inventory.quantity', 10),
+                  ColumnHelpers.currency('Price', 'price', 15),
+                  ColumnHelpers.currency('Cost', 'costPrice', 15),
+                  ColumnHelpers.text('Category', 'category.name', 20),
+                ],
+                data: filtered.map(p => ({
+                  ...p,
+                  inventory: p.inventory || { quantity: 0 },
+                  category: p.category || { name: '-' }
+                }))
+              })
+            }}
+            onExportPDF={() => {
+              const filtered = filteredProducts
+              exportToPDF({
+                title: 'Products Report',
+                subtitle: `Total: ${filtered.length} products`,
+                filename: `fikir-products-${new Date().toISOString().split('T')[0]}`,
+                companyName: 'Fikir Design',
+                companyInfo: ['Addis Ababa, Ethiopia', 'fikirdesign.et'],
+                columns: [
+                  ColumnHelpers.text('Product Name', 'name', 35),
+                  ColumnHelpers.text('SKU', 'sku', 20),
+                  ColumnHelpers.status('Status', 'status', 15),
+                  ColumnHelpers.number('Stock', 'inventory.quantity', 12),
+                  ColumnHelpers.currency('Price', 'price', 18),
+                  ColumnHelpers.text('Category', 'category.name', 25),
+                ],
+                data: filtered.map(p => ({
+                  ...p,
+                  inventory: p.inventory || { quantity: 0 },
+                  category: p.category || { name: '-' }
+                }))
+              })
+            }}
+          />
           <Button className="bg-green-600 hover:bg-green-700" type="button" onClick={openAdd}>
             <Plus className="mr-2" size={18} />
             {t('addProduct')}

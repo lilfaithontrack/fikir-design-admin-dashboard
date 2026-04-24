@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search, Filter, Download, AlertTriangle, Package, Warehouse, TrendingDown, RefreshCw, Loader2 } from 'lucide-react'
+import { Search, Filter, AlertTriangle, Package, Warehouse, TrendingDown, RefreshCw, Loader2 } from 'lucide-react'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { apiFetch } from '@/lib/api-fetch'
+import { ExportDropdown } from '@/components/ExportDropdown'
+import { exportToExcel, exportToPDF, ColumnHelpers } from '@/lib/export-utils'
 
 interface InventoryItem {
   id: number
@@ -123,10 +125,54 @@ export default function InventoryPage() {
             <RefreshCw className="mr-2" size={18} />
             {t('refresh')}
           </Button>
-          <Button variant="outline" className="border-green-600 text-green-600 hover:bg-green-50">
-            <Download className="mr-2" size={18} />
-            {t('export')}
-          </Button>
+          <ExportDropdown
+            label={t('export')}
+            onExportExcel={() => {
+              exportToExcel({
+                title: 'Inventory Report',
+                subtitle: `Generated on ${new Date().toLocaleDateString('en-ET')}`,
+                filename: `fikir-inventory-${new Date().toISOString().split('T')[0]}`,
+                companyName: 'Fikir Design',
+                companyInfo: ['Addis Ababa, Ethiopia', 'fikirdesign.et'],
+                columns: [
+                  ColumnHelpers.text('Product', 'productName', 30),
+                  ColumnHelpers.text('SKU', 'sku', 15),
+                  ColumnHelpers.number('Quantity', 'quantity', 12),
+                  ColumnHelpers.number('Threshold', 'lowStockThreshold', 12),
+                  ColumnHelpers.text('Status', 'stockStatus', 15),
+                  ColumnHelpers.date('Last Updated', 'updatedAt', 15),
+                ],
+                data: filteredInventory.map(item => ({
+                  ...item,
+                  productName: item.product.name,
+                  sku: item.product.sku,
+                  stockStatus: item.quantity === 0 ? 'OUT OF STOCK' : item.quantity <= item.lowStockThreshold ? 'LOW STOCK' : 'OK'
+                }))
+              })
+            }}
+            onExportPDF={() => {
+              exportToPDF({
+                title: 'Inventory Report',
+                subtitle: `Total: ${filteredInventory.length} items`,
+                filename: `fikir-inventory-${new Date().toISOString().split('T')[0]}`,
+                companyName: 'Fikir Design',
+                companyInfo: ['Addis Ababa, Ethiopia', 'fikirdesign.et'],
+                columns: [
+                  ColumnHelpers.text('Product', 'productName', 35),
+                  ColumnHelpers.text('SKU', 'sku', 20),
+                  ColumnHelpers.number('Qty', 'quantity', 10),
+                  ColumnHelpers.text('Status', 'stockStatus', 15),
+                  ColumnHelpers.date('Updated', 'updatedAt', 15),
+                ],
+                data: filteredInventory.map(item => ({
+                  ...item,
+                  productName: item.product.name,
+                  sku: item.product.sku,
+                  stockStatus: item.quantity === 0 ? 'OUT' : item.quantity <= item.lowStockThreshold ? 'LOW' : 'OK'
+                }))
+              })
+            }}
+          />
         </div>
       </div>
 

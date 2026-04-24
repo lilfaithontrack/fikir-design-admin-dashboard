@@ -9,7 +9,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
   Search,
   Filter,
-  Download,
   Plus,
   Users,
   Mail,
@@ -24,6 +23,8 @@ import {
 import { useLanguage } from '@/contexts/LanguageContext'
 import { apiFetch } from '@/lib/api-fetch'
 import FileUpload from '@/components/FileUpload'
+import { ExportDropdown } from '@/components/ExportDropdown'
+import { exportToExcel, exportToPDF, ColumnHelpers } from '@/lib/export-utils'
 
 interface Customer {
   id: number
@@ -499,10 +500,53 @@ export default function CustomersPage() {
           <p className="text-gray-500 mt-1 text-sm">Manage your customer database</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="border-green-600 text-green-600 hover:bg-green-50">
-            <Download className="mr-2" size={18} />
-            {t('export')}
-          </Button>
+          <ExportDropdown
+            label={t('export')}
+            onExportExcel={() => {
+              exportToExcel({
+                title: 'Customers Report',
+                subtitle: `Generated on ${new Date().toLocaleDateString('en-ET')}`,
+                filename: `fikir-customers-${new Date().toISOString().split('T')[0]}`,
+                companyName: 'Fikir Design',
+                companyInfo: ['Addis Ababa, Ethiopia', 'fikirdesign.et'],
+                columns: [
+                  ColumnHelpers.text('First Name', 'firstName', 15),
+                  ColumnHelpers.text('Last Name', 'lastName', 15),
+                  ColumnHelpers.text('Email', 'email', 25),
+                  ColumnHelpers.text('Phone', 'phone', 15),
+                  ColumnHelpers.text('City', 'city', 12),
+                  ColumnHelpers.text('Address', 'address', 25),
+                  ColumnHelpers.status('Status', 'status', 10),
+                  ColumnHelpers.number('Orders', 'totalOrders', 10),
+                  ColumnHelpers.currency('Total Spent', 'totalSpent', 15),
+                  ColumnHelpers.date('Joined', 'createdAt', 15),
+                ],
+                data: filteredCustomers
+              })
+            }}
+            onExportPDF={() => {
+              exportToPDF({
+                title: 'Customers Report',
+                subtitle: `Total: ${filteredCustomers.length} customers`,
+                filename: `fikir-customers-${new Date().toISOString().split('T')[0]}`,
+                companyName: 'Fikir Design',
+                companyInfo: ['Addis Ababa, Ethiopia', 'fikirdesign.et'],
+                columns: [
+                  ColumnHelpers.text('Name', 'firstName', 20),
+                  ColumnHelpers.text('Phone', 'phone', 18),
+                  ColumnHelpers.text('City', 'city', 15),
+                  ColumnHelpers.status('Status', 'status', 12),
+                  ColumnHelpers.number('Orders', 'totalOrders', 12),
+                  ColumnHelpers.currency('Total Spent', 'totalSpent', 18),
+                  ColumnHelpers.date('Joined', 'createdAt', 15),
+                ],
+                data: filteredCustomers.map(c => ({
+                  ...c,
+                  firstName: `${c.firstName} ${c.lastName}`
+                }))
+              })
+            }}
+          />
           <Button className="bg-green-600 hover:bg-green-700" type="button" onClick={() => setAddOpen(true)}>
             <Plus className="mr-2" size={18} />
             {t('addCustomer')}
