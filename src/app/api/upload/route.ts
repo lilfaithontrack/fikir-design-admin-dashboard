@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import upload from '@/lib/multer-config';
 import { getCurrentUserFromRequest } from '@/lib/session-user';
 import fs from 'fs';
 import path from 'path';

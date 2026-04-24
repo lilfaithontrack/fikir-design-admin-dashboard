@@ -102,17 +102,61 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const { items, customerId, notes, status, shipping, discount, currency } = body;
+
+    if (!customerId) {
+      return NextResponse.json({ error: 'customerId is required' }, { status: 400 });
+    }
+    if (!items || items.length === 0) {
+      return NextResponse.json({ error: 'At least one item is required' }, { status: 400 });
+    }
+
+    // Calculate totals
+    const subtotal = items.reduce((sum: number, item: any) => sum + (Number(item.price) * Number(item.quantity)), 0);
+    const shippingAmt = Number(shipping) || 0;
+    const discountAmt = Number(discount) || 0;
+    const total = subtotal + shippingAmt - discountAmt;
+
+    // Generate order number
+    const orderCount = await prisma.order.count();
+    const orderNumber = `ORD-${String(orderCount + 1).padStart(5, '0')}`;
+
+    // Fetch product names for order items
+    const productIds = items.map((i: any) => Number(i.productId))
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true, sku: true },
+    })
+    const productMap = Object.fromEntries(products.map((p: any) => [p.id, p]))
 
     const order = await prisma.order.create({
       data: {
-        ...body,
+        orderNumber,
+        customerId: Number(customerId),
+        status: status || 'pending',
+        notes: notes || null,
+        subtotal,
+        shipping: shippingAmt,
+        discount: discountAmt,
+        total,
+        currency: currency || 'ETB',
         items: {
-          create: body.items || [],
+          create: items.map((item: any) => {
+            const prod = productMap[Number(item.productId)] || {}
+            return {
+              productId: Number(item.productId),
+              name: prod.name || item.name || 'Product',
+              sku: prod.sku || item.sku || null,
+              quantity: Number(item.quantity),
+              price: Number(item.price),
+              total: Number(item.price) * Number(item.quantity),
+            }
+          }),
         },
       },
       include: {
         customer: true,
-        items: true,
+        items: { include: { product: true } },
       },
     });
 
@@ -120,7 +164,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating order:', error);
     return NextResponse.json(
-      { error: 'Failed to create order' },
+      { error: 'Failed to create order', details: (error as Error).message },
       { status: 500 }
     );
   }

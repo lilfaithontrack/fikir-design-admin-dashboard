@@ -66,11 +66,13 @@ const PHOTO_POSITIONS = ['Front', 'Back', 'Side Left', 'Side Right', 'Detail 1',
 function ModalShell({
   open,
   title,
+  wide,
   onClose,
   children,
 }: {
   open: boolean
   title: string
+  wide?: boolean
   onClose: () => void
   children: React.ReactNode
 }) {
@@ -82,7 +84,7 @@ function ModalShell({
       onClick={onClose}
     >
       <Card
-        className="w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-lg"
+        className={`w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto shadow-lg`}
         onClick={(e) => e.stopPropagation()}
       >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -113,7 +115,7 @@ export default function CustomersPage() {
   const [aaddress, setAaddress] = useState('')
   const [ahouseNumber, setAhouseNumber] = useState('')
   const [acity, setAcity] = useState('')
-  const [aphotos, setAphotos] = useState<string[]>(['', '', '', '', '', ''])
+  const [aphotos, setAphotos] = useState<string[]>([])
   const [ameasurements, setAmeasurements] = useState<Record<string, string>>({})
 
   const [editOpen, setEditOpen] = useState(false)
@@ -179,7 +181,7 @@ export default function CustomersPage() {
       setAaddress('')
       setAhouseNumber('')
       setAcity('')
-      setAphotos(['', '', '', '', '', ''])
+      setAphotos([])
       setAmeasurements({})
       await fetchCustomers()
     } catch (e) {
@@ -199,8 +201,7 @@ export default function CustomersPage() {
     setEaddress(c.address ?? '')
     setEhouseNumber(c.houseNumber ?? '')
     setEcity(c.city ?? '')
-    const ph = Array.isArray(c.photos) ? [...c.photos] : []
-    while (ph.length < 6) ph.push('')
+    const ph = Array.isArray(c.photos) ? c.photos.filter(Boolean) : []
     setEphotos(ph)
     const bm: Record<string, string> = {}
     if (c.bodyMeasurements) Object.entries(c.bodyMeasurements).forEach(([k, v]) => { bm[k] = String(v) })
@@ -293,7 +294,7 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-6">
-      <ModalShell open={addOpen} title={t('addCustomer')} onClose={() => setAddOpen(false)}>
+      <ModalShell open={addOpen} wide title={t('addCustomer')} onClose={() => setAddOpen(false)}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -355,7 +356,7 @@ export default function CustomersPage() {
         </div>
       </ModalShell>
 
-      <ModalShell open={editOpen} title="Edit Customer" onClose={() => setEditOpen(false)}>
+      <ModalShell open={editOpen} wide title="Edit Customer" onClose={() => setEditOpen(false)}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -423,7 +424,7 @@ export default function CustomersPage() {
         </div>
       </ModalShell>
 
-      <ModalShell open={viewOpen} title="Customer Profile" onClose={() => setViewOpen(false)}>
+      <ModalShell open={viewOpen} wide title="Customer Profile" onClose={() => setViewOpen(false)}>
         {viewCustomer && (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
