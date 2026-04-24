@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { GitBranch, RefreshCw, Loader2, ChevronRight, Clock, CheckCircle, AlertCircle } from 'lucide-react'
+import { GitBranch, RefreshCw, Loader2, ChevronRight, Clock, AlertCircle, ArrowRight } from 'lucide-react'
+import { apiFetch } from '@/lib/api-fetch'
 
 interface WorkflowEvent {
   id: number
@@ -86,7 +86,9 @@ const WORKFLOW_STAGES = [
 export default function WorkflowPage() {
   const [orders, setOrders] = useState<OrderWithWorkflow[]>([])
   const [events, setEvents] = useState<WorkflowEvent[]>([])
+  const [stageCounts, setStageCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
+  const [advancing, setAdvancing] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState<'board' | 'timeline'>('board')
   const [stageFilter, setStageFilter] = useState<string>('all')
   const [selectedOrder, setSelectedOrder] = useState<OrderWithWorkflow | null>(null)
@@ -94,38 +96,36 @@ export default function WorkflowPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/orders?limit=100', { credentials: 'include' })
+      const res = await apiFetch('/api/workflow')
       if (res.ok) {
         const d = await res.json()
-        const list: OrderWithWorkflow[] = Array.isArray(d.orders) ? d.orders : []
-        setOrders(list)
-        const allEvents = list.flatMap((o) =>
-          (o.workflowEvents ?? []).map((e) => ({
-            ...e,
-            order: {
-              orderNumber: o.orderNumber,
-              status: o.status,
-              currentStage: o.currentStage,
-              customer: o.customer,
-            },
-          }))
-        )
-        allEvents.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        setEvents(allEvents.slice(0, 80))
+        setOrders(d.orders || [])
+        setEvents(d.events || [])
+        setStageCounts(d.stageCounts || {})
       }
     } finally {
       setLoading(false)
     }
   }, [])
 
+  const advanceStage = async (order: OrderWithWorkflow) => {
+    setAdvancing(order.id)
+    try {
+      const res = await apiFetch('/api/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id }),
+      })
+      if (res.ok) await fetchData()
+      else { const d = await res.json(); alert(d.error || 'Failed to advance') }
+    } finally {
+      setAdvancing(null)
+    }
+  }
+
   useEffect(() => { void fetchData() }, [fetchData])
 
   const filtered = stageFilter === 'all' ? orders : orders.filter((o) => o.currentStage === stageFilter)
-
-  const stageCounts = WORKFLOW_STAGES.reduce<Record<string, number>>((acc, s) => {
-    acc[s] = orders.filter((o) => o.currentStage === s).length
-    return acc
-  }, {})
 
   if (loading) {
     return (
@@ -212,6 +212,7 @@ export default function WorkflowPage() {
                       <TableHead>Priority</TableHead>
                       <TableHead>Last Activity</TableHead>
                       <TableHead>Created</TableHead>
+                      <TableHead className="text-right">Advance</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -258,6 +259,23 @@ export default function WorkflowPage() {
                           </TableCell>
                           <TableCell className="text-xs text-gray-400 whitespace-nowrap">
                             {new Date(order.createdAt).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right" onClick={e => e.stopPropagation()}>
+                            {order.currentStage !== 'delivery_team' ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={advancing === order.id}
+                                onClick={() => advanceStage(order)}
+                                className="text-xs border-green-300 text-green-700 hover:bg-green-50"
+                              >
+                                {advancing === order.id
+                                  ? <Loader2 size={12} className="animate-spin" />
+                                  : <><ArrowRight size={12} className="mr-1" />Next</>}
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-green-600 font-semibold">✓ Done</span>
+                            )}
                           </TableCell>
                         </TableRow>
                       )
