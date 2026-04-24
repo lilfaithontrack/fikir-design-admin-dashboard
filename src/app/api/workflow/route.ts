@@ -54,6 +54,8 @@ export async function GET(req: NextRequest) {
         orderId: true,
         fromStage: true,
         toStage: true,
+        actorUserId: true,
+        actorRole: true,
         comment: true,
         createdAt: true,
         actor: { select: { id: true, firstName: true, lastName: true, role: true } },
