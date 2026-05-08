@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "next lint",
     "seed": "tsx prisma/seed.ts",
+    "db:setup": "prisma generate && prisma migrate deploy && npm run seed",
     "test:workflow:all": "node scripts/test-all-staff-workflow.mjs",
     "test:workflow:staff": "node scripts/test-staff-workflow.mjs",
     "test:workflow:e2e": "node scripts/test-workflow-e2e.mjs"
@@ -50,5 +51,8 @@
     "eslint": "^8.56.0",
     "eslint-config-next": "14.1.0",
     "tsx": "^4.21.0"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }
