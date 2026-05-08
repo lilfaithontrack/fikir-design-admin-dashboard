@@ -10,7 +10,10 @@
     "migrate:deploy": "prisma migrate deploy",
     "start": "next start",
     "lint": "next lint",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "test:workflow:all": "node scripts/test-all-staff-workflow.mjs",
+    "test:workflow:staff": "node scripts/test-staff-workflow.mjs",
+    "test:workflow:e2e": "node scripts/test-workflow-e2e.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
