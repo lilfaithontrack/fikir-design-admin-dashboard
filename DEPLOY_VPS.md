@@ -94,6 +94,8 @@ npx prisma migrate deploy
 npm run build
 ```
 
+Run **one command per line** in the shell (do not paste `migrate deploy` on the same line as `git pull` output).
+
 `prisma/migrations/` is tracked in this repo. After `git pull`, always run `npx prisma migrate deploy` before `npm run seed` or the DB will have no tables (`P2021`).
 
 ## 7) Run with PM2
