@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/session-user';
 
-export const WORKFLOW_STAGES = [
+const WORKFLOW_STAGES = [
   'crm_data',
   'sales_staff',
   'designer',
