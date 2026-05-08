@@ -35,8 +35,7 @@ next-env.d.ts
 
 /src/generated/prisma
 
-# Prisma
-prisma/migrations/
+# Prisma — keep prisma/migrations/ in git for deploy (migrate deploy)
 
 # Uploaded files (keep structure but ignore actual uploads)
 public/uploads/*/

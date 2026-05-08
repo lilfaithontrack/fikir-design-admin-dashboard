@@ -64,7 +64,7 @@ EXIT;
 ```bash
 mkdir -p /var/www
 cd /var/www
-git clone <YOUR_REPO_URL> fikir-admin-dashboard
+git clone https://github.com/lilfaithontrack/fikir-design-admin-dashboard.git fikir-admin-dashboard
 cd /var/www/fikir-admin-dashboard
 npm ci
 ```
@@ -93,6 +93,8 @@ npx prisma generate
 npx prisma migrate deploy
 npm run build
 ```
+
+`prisma/migrations/` is tracked in this repo. After `git pull`, always run `npx prisma migrate deploy` before `npm run seed` or the DB will have no tables (`P2021`).
 
 ## 7) Run with PM2
 
@@ -212,7 +214,7 @@ If you want to run only on public IP `116.203.128.35`, use one of these:
 From your VPS, run:
 
 ```bash
-git clone <YOUR_REPO_URL> /var/www/fikir-admin-dashboard
+git clone https://github.com/lilfaithontrack/fikir-design-admin-dashboard.git /var/www/fikir-admin-dashboard
 cd /var/www/fikir-admin-dashboard
 bash scripts/vps-deploy-ip.sh
 ```
