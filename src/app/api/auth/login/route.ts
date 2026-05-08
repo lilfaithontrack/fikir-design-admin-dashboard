@@ -3,6 +3,15 @@ import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { SESSION_COOKIE, normalizeUsername, signSession } from '@/lib/auth';
 
+function shouldUseSecureCookie(request: NextRequest): boolean {
+  const override = process.env.COOKIE_SECURE;
+  if (override === 'true') return true;
+  if (override === 'false') return false;
+
+  const forwardedProto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  return request.nextUrl.protocol === 'https:' || forwardedProto === 'https';
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -49,9 +58,11 @@ export async function POST(request: NextRequest) {
       token,
     });
 
+    const secureCookie = shouldUseSecureCookie(request);
+
     res.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: secureCookie,
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 7,
